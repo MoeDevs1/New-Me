@@ -436,7 +436,7 @@
     </div>
     <div class="datebox">
       <div class="big" id="todayLabel"></div>
-      <div class="small">Data saves automatically on this device.</div>
+      <div class="small">Data autosaves and syncs across your devices.</div>
     </div>
   </div>
 
@@ -588,6 +588,8 @@ let trackerDocRef = null;
 let cloudSaveTimer = null;
 let lastLocalWriteTs = 0;
 let syncListenerStarted = false;
+let reflectionAutosaveTimer = null;
+let reflectionDraftDirty = false;
 
 function queueCloudSave(data) {
   if (!syncCode || !trackerDocRef) return;
@@ -641,6 +643,8 @@ function setupFirestoreSync() {
         const incomingStore = JSON.parse(remote.data);
 
         if (!incomingStore || typeof incomingStore !== "object") return;
+
+        preserveReflectionDraft();
 
         store = incomingStore;
 
@@ -711,6 +715,35 @@ function saveStore(s){
   localStorage.setItem("disciplineTrackerV1", JSON.stringify(s));
   queueCloudSave(s);
 }
+
+
+function saveCurrentReflectionNow() {
+  const winsEl = $("wins");
+  if (!winsEl || !store?.days?.[todayKey]) return;
+
+  store.days[todayKey].wins = winsEl.value;
+  reflectionDraftDirty = false;
+  saveStore(store);
+}
+
+function scheduleReflectionAutosave() {
+  reflectionDraftDirty = true;
+  clearTimeout(reflectionAutosaveTimer);
+
+  reflectionAutosaveTimer = setTimeout(() => {
+    saveCurrentReflectionNow();
+  }, 500);
+}
+
+function preserveReflectionDraft() {
+  const winsEl = $("wins");
+  if (!winsEl || !store?.days?.[todayKey]) return;
+
+  if (reflectionDraftDirty) {
+    store.days[todayKey].wins = winsEl.value;
+  }
+}
+
 
 let store = getStore();
 if(!store.days) store.days = {};
@@ -907,6 +940,7 @@ function calculateHabitStreak(habit){
 }
 
 function renderHabits(){
+  preserveReflectionDraft();
   const day = store.days[todayKey];
   $("habitList").innerHTML="";
 
@@ -1012,7 +1046,9 @@ function renderHabits(){
   $("todayScore").textContent=`${done} / ${total} at 100%`;
   $("percentLabel").textContent=`${pct}%`;
   $("progressBar").style.width=`${pct}%`;
-  $("wins").value=day.wins || "";
+  if (!reflectionDraftDirty) {
+    $("wins").value = day.wins || "";
+  }
   renderArchivedGoals();
 }
 
@@ -1434,12 +1470,20 @@ function render(){
 }
 
 $("saveWins").onclick=()=>{
-  store.days[todayKey].wins=$("wins").value.trim();
-  saveStore(store);
+  clearTimeout(reflectionAutosaveTimer);
+  saveCurrentReflectionNow();
   const old=$("saveWins").textContent;
   $("saveWins").textContent="Saved ✓";
   setTimeout(()=>$("saveWins").textContent=old,900);
 };
+
+$("wins").addEventListener("input", scheduleReflectionAutosave);
+$("wins").addEventListener("blur", ()=>{
+  if (reflectionDraftDirty) {
+    clearTimeout(reflectionAutosaveTimer);
+    saveCurrentReflectionNow();
+  }
+});
 
 $("undoArchiveBtn").onclick=undoLastArchive;
 $("addHabitBtn").onclick=addHabit;
