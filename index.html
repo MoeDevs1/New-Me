@@ -519,6 +519,60 @@
       .gate-shell{grid-template-columns:1fr}
     }
 
+
+    .reflection-compose{
+      display:flex;
+      align-items:flex-start;
+      width:100%;
+      background:#111419;
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .reflection-compose:focus-within{border-color:#5d46b5}
+    .reflection-prefix{
+      flex:0 0 auto;
+      padding:12px 0 12px 13px;
+      color:var(--text);
+      font:inherit;
+      line-height:1.5;
+      font-weight:800;
+      user-select:none;
+      white-space:pre;
+    }
+    .reflection-compose textarea{
+      flex:1;
+      min-width:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      padding:12px 13px 12px 5px;
+      min-height:132px;
+    }
+    .reflection-compose textarea:focus{border:0}
+    .popup-reflection-compose{
+      display:flex;
+      align-items:flex-start;
+      width:100%;
+      background:#111419;
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .popup-reflection-compose:focus-within{border-color:#5d46b5}
+    .popup-reflection-compose .reflection-prefix{
+      padding-top:12px;
+    }
+    .popup-reflection-compose textarea{
+      flex:1;
+      min-width:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      padding:12px 13px 12px 5px;
+      min-height:110px;
+    }
+
     .footer{color:#6f7885;font-size:11px;text-align:center;margin-top:18px}
     @media(max-width:860px){
       .grid{grid-template-columns:1fr}
@@ -544,7 +598,7 @@
       <div class="gate-kicker">Private tracker</div>
       <h1>New Me</h1>
       <div class="gate-copy">
-        Your real habits and history stay hidden on this screen. Enter your sync code to open your tracker.
+        Enter your code to continue. Incorrect codes open a harmless example tracker.
       </div>
       <div class="gate-input-row">
         <input id="gateSyncCode" type="password" autocomplete="off" placeholder="Enter sync code" />
@@ -552,7 +606,7 @@
       </div>
       <div class="gate-error" id="gateError"></div>
       <div class="gate-note">
-        This preview uses fake example data only. Your actual tracker loads only after a code is entered on this device.
+        This preview uses unrelated fake example data only. None of your real goals are shown here. Your actual tracker loads only after a code is entered on this device.
       </div>
     </div>
 
@@ -563,19 +617,19 @@
       </div>
 
       <div class="demo-day">
-        <div><div class="demo-name">Morning walk</div><div class="demo-note">Sample goal</div></div>
+        <div><div class="demo-name">Read a book</div><div class="demo-note">Sample goal</div></div>
         <div class="demo-pct done">100%</div>
       </div>
       <div class="demo-day">
-        <div><div class="demo-name">Practice guitar</div><div class="demo-note">Sample goal</div></div>
+        <div><div class="demo-name">Learn a new trick</div><div class="demo-note">Sample goal</div></div>
         <div class="demo-pct half">50%</div>
       </div>
       <div class="demo-day">
-        <div><div class="demo-name">Study Spanish</div><div class="demo-note">Sample goal</div></div>
+        <div><div class="demo-name">Walk the dog</div><div class="demo-note">Sample goal</div></div>
         <div class="demo-pct low">25%</div>
       </div>
       <div class="demo-day">
-        <div><div class="demo-name">Tidy workspace</div><div class="demo-note">Sample goal</div></div>
+        <div><div class="demo-name">Organize a drawer</div><div class="demo-note">Sample goal</div></div>
         <div class="demo-pct miss">0%</div>
       </div>
 
@@ -626,7 +680,10 @@
     <div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head"><h2>Tonight's wins</h2><div class="pill">24h grace after day ends</div></div>
-        <textarea id="wins" placeholder="Today I..."></textarea>
+        <div class="reflection-compose">
+          <span class="reflection-prefix">Today I </span>
+          <textarea id="wins" placeholder="..." aria-label="Today I reflection"></textarea>
+        </div>
         <div class="row">
           <button class="btn" id="saveWins">Save reflection</button>
           <button class="btn secondary" id="clearToday">Clear today</button>
@@ -722,6 +779,46 @@ const db = firebase.firestore();
 const SYNC_CODE_KEY = "disciplineSyncCode";
 const DEVICE_ID_KEY = "disciplineDeviceId";
 
+const REAL_ACCESS_CODE = "aaaa";
+let isDemoMode = false;
+
+const DEMO_TASK_POOL = [
+  ["Read a book","Read for 20 minutes."],
+  ["Learn a new trick","Practice something fun and new."],
+  ["Walk the dog","Take the dog outside for a walk."],
+  ["Drink water","Finish your water goal."],
+  ["Organize a drawer","Pick one small space and organize it."],
+  ["Practice drawing","Sketch for 15 minutes."],
+  ["Call a friend","Check in with someone you care about."],
+  ["Cook something new","Try a simple new recipe."]
+];
+
+function makeDemoStore(){
+  const shuffled = [...DEMO_TASK_POOL].sort(()=>Math.random()-0.5).slice(0,4);
+  const demoHabits = shuffled.map(([title,note],i)=>({
+    id:"demo_"+i,
+    title,
+    note,
+    createdAt:todayKey,
+    archivedAt:null
+  }));
+
+  const states = {};
+  const samples = [100,50,25,0];
+  demoHabits.forEach((h,i)=>{ states[h.id] = samples[i]; });
+
+  return {
+    habits: demoHabits,
+    days: {
+      [todayKey]: {
+        states,
+        wins:""
+      }
+    }
+  };
+}
+
+
 let syncCode = localStorage.getItem(SYNC_CODE_KEY) || "";
 
 let deviceId = localStorage.getItem(DEVICE_ID_KEY);
@@ -746,14 +843,21 @@ let firestoreUnsubscribe = null;
 const REFLECTION_STARTER = "Today I ";
 
 function normalizeReflectionForSave(value){
-  const text = String(value ?? "");
-  return text.trim() === REFLECTION_STARTER.trim() ? "" : text;
+  const suffix = String(value ?? "").trim();
+  return suffix ? REFLECTION_STARTER + suffix : "";
 }
 
 function reflectionValueForEditor(value){
-  return value && String(value).trim()
-    ? value
-    : REFLECTION_STARTER;
+  const text = String(value ?? "");
+  if(!text.trim()) return "";
+
+  if(text.startsWith(REFLECTION_STARTER)){
+    return text.slice(REFLECTION_STARTER.length);
+  }
+
+  // Legacy reflections that predate the fixed prefix remain readable/editable
+  // as the suffix and will be normalized to "Today I ..." when next saved.
+  return text;
 }
 
 function showTracker(){
@@ -771,9 +875,12 @@ function lockTracker(){
     firestoreUnsubscribe();
     firestoreUnsubscribe = null;
   }
+
   syncListenerStarted = false;
   trackerDocRef = null;
   syncCode = "";
+  isDemoMode = false;
+
   localStorage.removeItem(SYNC_CODE_KEY);
   $("gateSyncCode").value = "";
   $("gateError").textContent = "";
@@ -784,28 +891,43 @@ async function unlockTrackerWithCode(code){
   const clean = String(code || "").trim();
 
   if(!clean){
-    $("gateError").textContent = "Enter your sync code.";
+    $("gateError").textContent = "Enter a code.";
     return;
   }
 
-  if(clean.includes("/")){
-    $("gateError").textContent = "The sync code cannot contain /";
-    return;
-  }
-
-  syncCode = clean;
-  localStorage.setItem(SYNC_CODE_KEY, syncCode);
   $("gateError").textContent = "";
 
   if(firestoreUnsubscribe){
     firestoreUnsubscribe();
     firestoreUnsubscribe = null;
   }
+
   syncListenerStarted = false;
   trackerDocRef = null;
 
+  // Only the exact private code opens the real synced tracker.
+  if(clean === REAL_ACCESS_CODE){
+    isDemoMode = false;
+    syncCode = clean;
+    localStorage.setItem(SYNC_CODE_KEY, syncCode);
+
+    store = getStore();
+    if(!store.days) store.days = {};
+    if(!store.days[todayKey]) store.days[todayKey] = {states:{},wins:""};
+
+    showTracker();
+    render();
+    await setupFirestoreSync();
+    return;
+  }
+
+  // Any other code opens a harmless fake tracker with 4 unrelated demo tasks.
+  isDemoMode = true;
+  syncCode = "";
+  store = makeDemoStore();
+
   showTracker();
-  await setupFirestoreSync();
+  render();
 }
 
 let reflectionAutosaveTimer = null;
@@ -896,16 +1018,16 @@ function setupFirestoreSync() {
 }
 
 const DEFAULT_HABITS = [
-  ["Morning walk","Get up when the alarm goes off."],
+  ["Read a book","Get up when the alarm goes off."],
   ["Skincare","Complete your planned routine."],
-  ["Practice guitar","Complete today's scheduled workout."],
+  ["Learn a new trick","Complete today's scheduled workout."],
   ["Post content","Post once. Don't delete because of early views."],
   ["Learn Islam / Prophet ﷺ","Spend intentional time learning."],
   ["Make bed","Start the room clean."],
   ["5–6k steps","Hit your daily movement target."],
   ["30+ min outside","Get outside intentionally."],
   ["Doomscroll ≤ 1 hour","Keep short-form entertainment under control."],
-  ["Study Spanish Qur'an","Your normal target is five pages."],
+  ["Walk the dog Qur'an","Your normal target is five pages."],
   ["Flexibility / splits","Do your planned stretching session."]
 ];
 
@@ -932,6 +1054,10 @@ function getStore(){
   catch { return {}; }
 }
 function saveStore(s){
+  if(isDemoMode){
+    return;
+  }
+
   localStorage.setItem("disciplineTrackerV1", JSON.stringify(s));
   queueCloudSave(s);
 }
@@ -1391,10 +1517,21 @@ function renderPopupReflection(dateKey){
   area.innerHTML = "";
 
   if(canEditReflection(dateKey)){
+    const compose = document.createElement("div");
+    compose.className = "popup-reflection-compose";
+
+    const prefix = document.createElement("span");
+    prefix.className = "reflection-prefix";
+    prefix.textContent = REFLECTION_STARTER;
+
     const editor = document.createElement("textarea");
     editor.className = "past-reflection-editor";
-    editor.placeholder = "Add a reflection for this day...";
+    editor.placeholder = "...";
+    editor.setAttribute("aria-label","Today I reflection");
     editor.value = reflectionValueForEditor(day.wins);
+
+    compose.appendChild(prefix);
+    compose.appendChild(editor);
 
     const actions = document.createElement("div");
     actions.className = "reflection-actions";
@@ -1419,14 +1556,18 @@ function renderPopupReflection(dateKey){
 
     actions.appendChild(deadlineText);
     actions.appendChild(save);
-    area.appendChild(editor);
+    area.appendChild(compose);
     area.appendChild(actions);
   } else {
     const box = document.createElement("div");
     box.className = "reflection-box";
-    box.textContent = day.wins?.trim()
-      ? day.wins
-      : "No reflection was saved for this day.";
+    if(day.wins?.trim()){
+      box.textContent = day.wins.startsWith(REFLECTION_STARTER)
+        ? day.wins
+        : REFLECTION_STARTER + day.wins;
+    } else {
+      box.textContent = "No reflection was saved for this day.";
+    }
 
     const note = document.createElement("div");
     note.className = "locked-note";
@@ -1743,10 +1884,13 @@ $("lockTrackerBtn").onclick=lockTracker;
 
 render();
 
-if(syncCode){
+if(syncCode === REAL_ACCESS_CODE){
+  isDemoMode = false;
   showTracker();
   setupFirestoreSync();
 } else {
+  syncCode = "";
+  localStorage.removeItem(SYNC_CODE_KEY);
   showGate();
 }
 </script>
