@@ -734,7 +734,7 @@
     <div class="card-head">
       <div>
         <h2>Monthly history</h2>
-        <div class="sub" style="font-size:12px;margin-top:5px">When a day ends, any habit you left unfinished automatically becomes 0% (red ✕). Gray ✕ means the habit did not exist yet. Archived goals remain in history.</div>
+        <div class="sub" style="font-size:12px;margin-top:5px">When a day ends, any habit you left unfinished becomes 0% (red ✕), but you have 24 hours to correct that day's task progress. Gray ✕ means the habit did not exist yet. Archived goals remain in history.</div>
       </div>
       <div class="history-nav">
         <button class="month-btn" id="prevMonth" title="Previous month">‹</button>
@@ -1566,6 +1566,26 @@ function canEditReflection(dateKey){
   return now < reflectionEditDeadline(dateKey);
 }
 
+function canEditTaskProgress(dateKey){
+  const d = parseDateKey(dateKey);
+  const now = new Date();
+  if(d > now) return false;
+  return now < reflectionEditDeadline(dateKey);
+}
+
+function setPastProgress(dateKey, habitId, percent){
+  if(!canEditTaskProgress(dateKey)) return;
+
+  const day = store.days[dateKey] || (store.days[dateKey]={states:{},wins:""});
+  if(!day.states) day.states = {};
+  day.states[habitId] = percent;
+
+  saveStore(store);
+  render();
+  openDayPopup(dateKey);
+}
+
+
 function renderPopupReflection(dateKey){
   const day = store.days[dateKey] || (store.days[dateKey]={states:{},wins:""});
   const area = $("dayReflectionArea");
@@ -1681,6 +1701,25 @@ function openDayPopup(dateKey){
           </div>
           <div class="popup-progress-label p${pct}">${pct}%</div>
         </div>`;
+
+      if(canEditTaskProgress(dateKey)){
+        const controls = document.createElement("div");
+        controls.className = "percent-actions";
+        controls.style.marginLeft = "8px";
+
+        [0,25,50,100].forEach(option=>{
+          const btn = document.createElement("button");
+          btn.className = `percent-btn ${pct===option ? "active" : ""}`;
+          btn.dataset.pct = String(option);
+          btn.type = "button";
+          btn.textContent = `${option}%`;
+          btn.onclick = ()=>setPastProgress(dateKey,h.id,option);
+          controls.appendChild(btn);
+        });
+
+        row.appendChild(controls);
+      }
+
       $("daySummary").appendChild(row);
     });
   }
@@ -1696,9 +1735,13 @@ function openDayPopup(dateKey){
     ? "reflection editable"
     : "reflection locked";
 
+  const taskStatus = canEditTaskProgress(dateKey)
+    ? "tasks editable"
+    : "tasks locked";
+
   $("dayModalSub").textContent = active.length
-    ? `${completed} of ${active.length} goals at 100% · ${reflectionStatus}`
-    : reflectionStatus;
+    ? `${completed} of ${active.length} goals at 100% · ${taskStatus} · ${reflectionStatus}`
+    : `${taskStatus} · ${reflectionStatus}`;
 
   $("dayModalBackdrop").classList.add("show");
 }
