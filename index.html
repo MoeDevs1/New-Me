@@ -573,6 +573,22 @@
       min-height:110px;
     }
 
+
+    .archive-actions{display:flex;gap:7px;flex-wrap:wrap}
+    .permanent-delete-btn{
+      border:1px solid rgba(251,113,133,.35);
+      background:rgba(251,113,133,.08);
+      color:var(--bad);
+      border-radius:9px;
+      padding:8px 10px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .permanent-delete-btn:hover{
+      border-color:rgba(251,113,133,.7);
+      background:rgba(251,113,133,.13);
+    }
+
     .footer{color:#6f7885;font-size:11px;text-align:center;margin-top:18px}
     @media(max-width:860px){
       .grid{grid-template-columns:1fr}
@@ -1099,13 +1115,10 @@ if(!store.days) store.days = {};
 // Convert once to stable habit objects + habit-ID keyed states.
 // Existing habits are treated as having existed from the earliest saved day,
 // so upgrading the app does NOT make them look newly created.
-if(!store.habits || !store.habits.length){
-  store.habits = DEFAULT_HABITS.map(([title,note],i)=>({
-    id:"default_"+i,
-    title,
-    note,
-    createdAt: todayKey
-  }));
+if(!store.habits){
+  // A brand-new real user starts with an empty tracker.
+  // Demo users are created separately by makeDemoStore().
+  store.habits = [];
 } else if(Array.isArray(store.habits[0])){
   const savedKeys = Object.keys(store.days).sort();
   const earliestSaved = savedKeys.length ? savedKeys[0] : todayKey;
@@ -1218,6 +1231,33 @@ It will disappear from Today's active goals, but ALL of its monthly history will
   render();
 }
 
+function permanentlyDeleteHabit(habitId){
+  const habit = store.habits.find(h=>h.id===habitId);
+  if(!habit) return;
+
+  const ok = confirm(
+    `Permanently delete "${habit.title}"?\n\nThis will erase the goal AND all of its saved history. This cannot be undone.`
+  );
+
+  if(!ok) return;
+
+  store.habits = store.habits.filter(h=>h.id!==habitId);
+
+  // Remove this habit's saved state from every historical day.
+  Object.values(store.days || {}).forEach(day=>{
+    if(day.states && Object.prototype.hasOwnProperty.call(day.states, habitId)){
+      delete day.states[habitId];
+    }
+  });
+
+  if(lastArchivedHabitId === habitId){
+    lastArchivedHabitId = null;
+  }
+
+  saveStore(store);
+  render();
+}
+
 function restoreHabit(habitId){
   const habit = store.habits.find(h=>h.id===habitId);
   if(!habit) return;
@@ -1293,6 +1333,17 @@ function renderHabits(){
   const activeHabits = store.habits
     .map((h,index)=>({h,index}))
     .filter(item=>!item.h.archivedAt);
+
+  if(!activeHabits.length){
+    const empty = document.createElement("div");
+    empty.className = "archive-item";
+    empty.innerHTML = `
+      <div>
+        <div class="archive-name">No goals yet</div>
+        <div class="archive-meta">Add your first goal below. New accounts start empty.</div>
+      </div>`;
+    $("habitList").appendChild(empty);
+  }
 
   activeHabits.forEach(({h,index})=>{
     const i = index;
@@ -1419,8 +1470,12 @@ function renderArchivedGoals(){
         <div class="archive-name">${escapeHTML(h.title)}</div>
         <div class="archive-meta">Archived ${h.archivedAt} · history preserved</div>
       </div>
-      <button class="restore-btn" type="button">Restore</button>`;
+      <div class="archive-actions">
+        <button class="restore-btn" type="button">Restore</button>
+        <button class="permanent-delete-btn" type="button">Delete forever</button>
+      </div>`;
     item.querySelector(".restore-btn").onclick=()=>restoreHabit(h.id);
+    item.querySelector(".permanent-delete-btn").onclick=()=>permanentlyDeleteHabit(h.id);
     $("archiveList").appendChild(item);
   });
 }
