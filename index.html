@@ -540,7 +540,137 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
+
 <script>
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCmVRus-753BhumSn6v2WE1IzN1uPAMGxs",
+  authDomain: "new-me-894bf.firebaseapp.com",
+  projectId: "new-me-894bf",
+  storageBucket: "new-me-894bf.firebasestorage.app",
+  messagingSenderId: "190672800588",
+  appId: "1:190672800588:web:d1fcc9ea7e8a5435671de9"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const SYNC_CODE_KEY = "disciplineSyncCode";
+const DEVICE_ID_KEY = "disciplineDeviceId";
+
+let syncCode = localStorage.getItem(SYNC_CODE_KEY);
+
+if (!syncCode) {
+  syncCode = prompt(
+    "Enter your tracker sync code. Use the SAME code on your PC and phone."
+  )?.trim();
+
+  if (syncCode) {
+    localStorage.setItem(SYNC_CODE_KEY, syncCode);
+  }
+}
+
+let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+
+if (!deviceId) {
+  deviceId =
+    "device_" +
+    Date.now().toString(36) +
+    "_" +
+    Math.random().toString(36).slice(2, 10);
+
+  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+}
+
+let trackerDocRef = null;
+let cloudSaveTimer = null;
+let lastLocalWriteTs = 0;
+let syncListenerStarted = false;
+
+function queueCloudSave(data) {
+  if (!syncCode || !trackerDocRef) return;
+
+  clearTimeout(cloudSaveTimer);
+
+  cloudSaveTimer = setTimeout(async () => {
+    const timestamp = Date.now();
+    lastLocalWriteTs = timestamp;
+
+    try {
+      await trackerDocRef.set(
+        {
+          data: JSON.stringify(data),
+          updatedAt: timestamp,
+          updatedBy: deviceId
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Firebase save failed:", error);
+    }
+  }, 400);
+}
+
+function setupFirestoreSync() {
+  if (!syncCode || syncListenerStarted) return;
+
+  syncListenerStarted = true;
+  trackerDocRef = db.collection("trackers").doc(syncCode);
+
+  trackerDocRef.onSnapshot(
+    snapshot => {
+      if (!snapshot.exists) {
+        queueCloudSave(store);
+        return;
+      }
+
+      const remote = snapshot.data() || {};
+
+      if (
+        remote.updatedBy === deviceId &&
+        Number(remote.updatedAt) === Number(lastLocalWriteTs)
+      ) {
+        return;
+      }
+
+      if (!remote.data) return;
+
+      try {
+        const incomingStore = JSON.parse(remote.data);
+
+        if (!incomingStore || typeof incomingStore !== "object") return;
+
+        store = incomingStore;
+
+        if (!store.days) {
+          store.days = {};
+        }
+
+        if (!store.days[todayKey]) {
+          store.days[todayKey] = {
+            states: {},
+            wins: ""
+          };
+        }
+
+        localStorage.setItem(
+          "disciplineTrackerV1",
+          JSON.stringify(store)
+        );
+
+        render();
+      } catch (error) {
+        console.error("Firebase sync failed:", error);
+      }
+    },
+    error => {
+      console.error("Firestore listener failed:", error);
+    }
+  );
+}
+
 const DEFAULT_HABITS = [
   ["Wake up for Fajr","Get up when the alarm goes off."],
   ["Skincare","Complete your planned routine."],
@@ -577,7 +707,10 @@ function getStore(){
   try { return JSON.parse(localStorage.getItem("disciplineTrackerV1") || "{}"); }
   catch { return {}; }
 }
-function saveStore(s){ localStorage.setItem("disciplineTrackerV1", JSON.stringify(s)); }
+function saveStore(s){
+  localStorage.setItem("disciplineTrackerV1", JSON.stringify(s));
+  queueCloudSave(s);
+}
 
 let store = getStore();
 if(!store.days) store.days = {};
@@ -1339,10 +1472,7 @@ $("nextMonth").onclick=()=>{
 };
 
 render();
+setupFirestoreSync();
 </script>
-
 </body>
-
-
 </html>
-
