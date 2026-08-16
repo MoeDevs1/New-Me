@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Discipline Tracker</title>
+  <style>
+    :root{
+      --bg:#0d0f12;
+      --panel:#15181d;
+      --panel2:#1b1f25;
+      --text:#f4f7fb;
+      --muted:#9aa4b2;
+      --border:#2a3038;
+      --good:#2dd4bf;
+      --bad:#fb7185;
+      --accent:#8b5cf6;
+      --accent2:#7c3aed;
+      --shadow:0 18px 50px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(139,92,246,.13), transparent 28%),
+        radial-gradient(circle at 90% 20%, rgba(45,212,191,.08), transparent 25%),
+        var(--bg);
+      color:var(--text);
+      min-height:100vh;
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:30px 18px 60px}
+    .top{
+      display:flex;justify-content:space-between;gap:18px;align-items:flex-start;
+      margin-bottom:22px;
+    }
+    h1{font-size:clamp(30px,5vw,52px);line-height:1;margin:0 0 9px;letter-spacing:-1.5px}
+    .sub{color:var(--muted);font-size:15px;max-width:700px;line-height:1.55}
+    .datebox{
+      min-width:210px;background:rgba(21,24,29,.9);border:1px solid var(--border);
+      border-radius:16px;padding:14px 16px;box-shadow:var(--shadow)
+    }
+    .datebox .big{font-size:18px;font-weight:800}
+    .datebox .small{font-size:12px;color:var(--muted);margin-top:5px}
+    .grid{display:grid;grid-template-columns:1.4fr .8fr;gap:18px}
+    .card{
+      background:linear-gradient(180deg,rgba(24,28,34,.96),rgba(19,22,27,.96));
+      border:1px solid var(--border);border-radius:20px;padding:18px;box-shadow:var(--shadow)
+    }
+    .card h2{margin:0;font-size:18px;letter-spacing:-.2px}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:7px 10px;border-radius:999px;background:#111419}
+    .habit-list{display:flex;flex-direction:column;gap:10px}
+    .habit{
+      display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
+      padding:12px 13px;border:1px solid var(--border);border-radius:14px;background:var(--panel2);
+      transition:opacity .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .habit.dragging{opacity:.42;border-color:var(--accent)}
+    .habit.drag-over{border-color:var(--accent);transform:translateY(2px)}
+    .drag-handle{
+      width:30px;height:34px;border:0;background:transparent;color:var(--muted);
+      cursor:grab;font-size:20px;line-height:1;padding:0;user-select:none;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .drag-handle:active{cursor:grabbing}
+    .drag-handle:hover{color:var(--text)}
+    .habit-title{font-weight:750;font-size:14px}
+    .habit-note{font-size:12px;color:var(--muted);margin-top:3px}
+    .actions{display:flex;gap:7px}
+    .state-btn{
+      width:38px;height:34px;border-radius:10px;border:1px solid var(--border);
+      background:#111419;color:var(--muted);font-size:16px;font-weight:900;cursor:pointer;
+      transition:.15s ease;
+    }
+    .state-btn:hover{transform:translateY(-1px);border-color:#424a56}
+    .state-btn.good.active{background:rgba(45,212,191,.15);border-color:rgba(45,212,191,.55);color:var(--good)}
+    .state-btn.bad.active{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.55);color:var(--bad)}
+    .progress{height:10px;background:#0e1115;border:1px solid var(--border);border-radius:999px;overflow:hidden;margin:12px 0 6px}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--good));transition:width .25s ease}
+    .progress-row{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}
+    textarea,input{
+      width:100%;background:#111419;border:1px solid var(--border);color:var(--text);
+      border-radius:12px;padding:12px 13px;outline:none;font:inherit;
+    }
+    textarea{min-height:132px;resize:vertical;line-height:1.5}
+    textarea:focus,input:focus{border-color:#5d46b5}
+    .btn{
+      border:0;border-radius:12px;padding:11px 14px;font-weight:800;cursor:pointer;
+      background:linear-gradient(180deg,var(--accent),var(--accent2));color:white;
+    }
+    .btn.secondary{background:#191d23;border:1px solid var(--border);color:var(--text)}
+    .row{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+    .week-grid{
+      display:grid;grid-template-columns:160px repeat(7,1fr);gap:6px;overflow:auto;padding-bottom:4px
+    }
+    .wcell{
+      min-height:40px;border:1px solid var(--border);border-radius:10px;background:#111419;
+      display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);padding:6px;text-align:center
+    }
+    .wcell.name{justify-content:flex-start;color:var(--text);font-weight:700}
+    .wcell.good{color:var(--good);background:rgba(45,212,191,.08)}
+    .wcell.bad{color:var(--bad);background:rgba(251,113,133,.07)}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}
+    .stat{padding:14px;border:1px solid var(--border);border-radius:14px;background:#111419}
+    .stat b{display:block;font-size:22px}
+    .stat span{font-size:11px;color:var(--muted)}
+    .quote{
+      border-left:3px solid var(--accent);padding:11px 12px;background:rgba(139,92,246,.08);
+      border-radius:0 12px 12px 0;color:#d9d5ff;font-size:13px;line-height:1.55;margin-top:12px
+    }
+
+    .habit-main{min-width:0}
+    .habit-tools{display:flex;gap:6px;align-items:center}
+    .icon-btn{
+      width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+      background:#111419;color:var(--muted);cursor:pointer;font-size:14px;font-weight:800;
+    }
+    .icon-btn:hover{color:var(--text);border-color:#424a56}
+    .add-habit{
+      display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:12px
+    }
+    .edit-row{
+      display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;width:100%
+    }
+    .drop-marker{
+      height:4px;border-radius:999px;background:var(--accent);margin:-3px 4px 3px;
+      box-shadow:0 0 0 1px rgba(139,92,246,.25);
+    }
+    .habit.dragging{opacity:.35}
+    .habit.drag-before{box-shadow:0 -3px 0 var(--accent)}
+    .habit.drag-after{box-shadow:0 3px 0 var(--accent)}
+
+
+    .history-nav{display:flex;align-items:center;gap:8px}
+    .month-btn{
+      width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+      background:#111419;color:var(--text);cursor:pointer;font-size:18px;font-weight:900;
+    }
+    .month-btn:hover{border-color:#4a5260}
+    .month-btn:disabled{opacity:.35;cursor:not-allowed}
+    .month-grid{
+      display:grid;
+      gap:5px;
+      overflow:auto;
+      padding-bottom:8px;
+    }
+    .month-cell{
+      min-width:34px;min-height:38px;
+      border:1px solid var(--border);
+      border-radius:9px;
+      background:#111419;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;color:var(--muted);
+      padding:5px;text-align:center;
+    }
+    .month-cell.name{
+      min-width:160px;justify-content:flex-start;
+      position:sticky;left:0;z-index:2;
+      color:var(--text);font-weight:750;
+      background:#15191f;
+    }
+    .month-cell.head{
+      min-height:46px;font-size:11px;font-weight:800;
+      flex-direction:column;line-height:1.15;
+    }
+    .month-cell.done{
+      color:var(--good);
+      background:rgba(45,212,191,.08);
+      border-color:rgba(45,212,191,.22);
+      font-weight:900;
+    }
+
+    .month-cell.partial25{
+      color:#fbbf24;
+      background:rgba(251,191,36,.10);
+      border-color:rgba(251,191,36,.28);
+      font-weight:900;
+    }
+    .month-cell.partial50{
+      color:#facc15;
+      background:rgba(250,204,21,.14);
+      border-color:rgba(250,204,21,.30);
+      font-weight:900;
+    }
+
+    .month-cell.missed{
+      color:var(--bad);
+      background:rgba(251,113,133,.08);
+      border-color:rgba(251,113,133,.22);
+      font-weight:900;
+    }
+    .month-cell.precreated{
+      color:#7f8792;
+      background:rgba(127,135,146,.055);
+      border-color:#252b33;
+      font-weight:900;
+    }
+    .month-cell.future{
+      color:#4f5661;
+      background:#0f1216;
+    }
+    .legend{
+      display:flex;gap:14px;flex-wrap:wrap;
+      color:var(--muted);font-size:11px;margin-top:8px
+    }
+    .legend span{display:flex;align-items:center;gap:5px}
+    .legend b{font-size:14px}
+
+
+    .archive-panel{
+      margin-top:14px;padding:12px;border:1px dashed var(--border);
+      border-radius:14px;background:#111419;
+    }
+    .archive-panel summary{
+      cursor:pointer;color:var(--muted);font-size:12px;font-weight:800;
+      user-select:none;
+    }
+    .archive-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .archive-item{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:10px 11px;border:1px solid var(--border);border-radius:11px;background:#15191f
+    }
+    .archive-name{font-size:13px;font-weight:750}
+    .archive-meta{font-size:11px;color:var(--muted);margin-top:2px}
+    .restore-btn{
+      border:1px solid var(--border);background:#191d23;color:var(--text);
+      border-radius:9px;padding:8px 10px;font-weight:800;cursor:pointer;
+    }
+    .restore-btn:hover{border-color:#4a5260}
+    .toast{
+      position:fixed;right:20px;bottom:20px;z-index:9999;
+      display:none;align-items:center;gap:12px;
+      background:#181c22;border:1px solid var(--border);
+      border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);
+      max-width:min(420px,calc(100vw - 40px));
+    }
+    .toast.show{display:flex}
+    .toast-text{font-size:13px;line-height:1.35}
+    .undo-btn{
+      border:0;background:transparent;color:#c4b5fd;
+      font-weight:900;cursor:pointer;padding:4px 2px;
+    }
+    .month-cell.archived-name{
+      opacity:.72;
+    }
+
+
+    .streak-card{
+      display:flex;align-items:center;gap:12px;
+      padding:13px 14px;margin-bottom:14px;
+      border:1px solid rgba(251,146,60,.28);
+      border-radius:14px;background:rgba(251,146,60,.07);
+    }
+    .streak-fire{font-size:32px;line-height:1;filter:drop-shadow(0 0 10px rgba(251,146,60,.25))}
+    .streak-number{font-size:25px;font-weight:900;line-height:1}
+    .streak-label{font-size:11px;color:var(--muted);margin-top:4px}
+    .streak-best{margin-left:auto;text-align:right}
+    .streak-best b{display:block;font-size:16px}
+    .streak-best span{font-size:10px;color:var(--muted)}
+
+
+    .habit-streak{
+      display:inline-flex;align-items:center;gap:4px;
+      margin-left:8px;padding:3px 7px;border-radius:999px;
+      border:1px solid rgba(251,146,60,.24);
+      background:rgba(251,146,60,.07);
+      font-size:11px;font-weight:900;color:#f59e0b;
+      vertical-align:middle;
+    }
+    .streak-card.all-done{
+      border-color:rgba(96,165,250,.55);
+      background:rgba(59,130,246,.12);
+      box-shadow:0 0 24px rgba(59,130,246,.10);
+    }
+    .streak-card.all-done .streak-fire{
+      filter:none;
+    }
+    .streak-card.all-done .streak-number,
+    .streak-card.all-done .streak-fire{
+      color:#60a5fa;
+    }
+    .all-done-badge{
+      display:none;
+      margin-top:5px;
+      font-size:10px;font-weight:900;color:#60a5fa;
+      letter-spacing:.5px;text-transform:uppercase;
+    }
+    .streak-card.all-done .all-done-badge{display:block}
+
+
+    .percent-actions{
+      display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;
+    }
+    .percent-btn{
+      min-width:42px;height:32px;padding:0 8px;border-radius:9px;
+      border:1px solid var(--border);background:#111419;color:var(--muted);
+      cursor:pointer;font-size:11px;font-weight:900;transition:.15s ease;
+    }
+    .percent-btn:hover{border-color:#4a5260;color:var(--text)}
+    .percent-btn.active[data-pct="0"]{
+      color:var(--bad);border-color:rgba(251,113,133,.55);background:rgba(251,113,133,.12)
+    }
+    .percent-btn.active[data-pct="25"]{
+      color:#fbbf24;border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.10)
+    }
+    .percent-btn.active[data-pct="50"]{
+      color:#facc15;border-color:rgba(250,204,21,.5);background:rgba(250,204,21,.12)
+    }
+    .percent-btn.active[data-pct="100"]{
+      color:var(--good);border-color:rgba(45,212,191,.55);background:rgba(45,212,191,.15)
+    }
+    .habit.progress-0{border-color:rgba(251,113,133,.22)}
+    .habit.progress-25{
+      background:linear-gradient(90deg,rgba(251,191,36,.13) 0 25%,var(--panel2) 25% 100%)
+    }
+    .habit.progress-50{
+      background:linear-gradient(90deg,rgba(250,204,21,.13) 0 50%,var(--panel2) 50% 100%)
+    }
+    .habit.progress-100{
+      background:rgba(45,212,191,.11);border-color:rgba(45,212,191,.35)
+    }
+
+
+    .day-modal-backdrop{
+      position:fixed;inset:0;z-index:10000;
+      background:rgba(0,0,0,.58);
+      display:none;align-items:center;justify-content:center;
+      padding:20px;
+    }
+    .day-modal-backdrop.show{display:flex}
+    .day-modal{
+      width:min(560px,100%);
+      max-height:82vh;overflow:auto;
+      background:linear-gradient(180deg,#181c22,#12151a);
+      border:1px solid var(--border);
+      border-radius:18px;padding:18px;
+      box-shadow:var(--shadow);
+    }
+    .day-modal-head{
+      display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+      margin-bottom:14px;
+    }
+    .day-modal-title{font-size:20px;font-weight:900}
+    .day-modal-sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .day-modal-close{
+      width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+      background:#111419;color:var(--text);cursor:pointer;font-size:18px;
+    }
+    .day-summary{
+      display:flex;flex-direction:column;gap:8px;margin-bottom:14px
+    }
+    .day-summary-row{
+      display:flex;justify-content:space-between;gap:12px;
+      padding:9px 10px;border:1px solid var(--border);
+      border-radius:10px;background:#111419;font-size:12px;
+    }
+    .reflection-box{
+      border:1px solid var(--border);border-radius:12px;
+      background:#111419;padding:12px;white-space:pre-wrap;
+      color:var(--text);line-height:1.5;font-size:13px;
+      min-height:80px;
+    }
+    .clickable-day{cursor:pointer}
+    .clickable-day:hover{border-color:#5d46b5;transform:translateY(-1px)}
+
+
+    .day-summary-row{
+      align-items:center;
+    }
+    .popup-habit-info{min-width:130px;flex:1}
+    .popup-progress-wrap{
+      width:min(230px,42vw);
+      display:flex;align-items:center;gap:8px;
+    }
+    .popup-progress{
+      flex:1;height:9px;border:1px solid var(--border);
+      border-radius:999px;background:#0e1115;overflow:hidden;
+    }
+    .popup-progress-fill{
+      height:100%;width:0%;transition:width .2s ease;
+    }
+    .popup-progress-fill.p0{background:rgba(251,113,133,.85)}
+    .popup-progress-fill.p25{background:rgba(251,191,36,.9)}
+    .popup-progress-fill.p50{background:rgba(250,204,21,.9)}
+    .popup-progress-fill.p100{background:var(--good)}
+    .popup-progress-label{
+      width:42px;text-align:right;font-weight:900;font-size:11px;
+    }
+    .popup-progress-label.p0{color:var(--bad)}
+    .popup-progress-label.p25{color:#fbbf24}
+    .popup-progress-label.p50{color:#facc15}
+    .popup-progress-label.p100{color:var(--good)}
+
+
+    .past-reflection-editor{
+      width:100%;min-height:110px;
+      background:#111419;border:1px solid var(--border);
+      color:var(--text);border-radius:12px;
+      padding:12px;font:inherit;line-height:1.5;resize:vertical;
+    }
+    .reflection-actions{
+      display:flex;justify-content:space-between;align-items:center;
+      gap:10px;margin-top:9px;flex-wrap:wrap;
+    }
+    .reflection-deadline{
+      color:var(--muted);font-size:11px;
+    }
+    .locked-note{
+      margin-top:8px;color:var(--muted);font-size:11px;
+    }
+
+    .footer{color:#6f7885;font-size:11px;text-align:center;margin-top:18px}
+    @media(max-width:860px){
+      .grid{grid-template-columns:1fr}
+      .top{flex-direction:column}
+      .datebox{width:100%}
+    }
+    @media(max-width:520px){
+      .habit{grid-template-columns:auto 1fr}
+      .actions{grid-column:2;justify-content:flex-end}
+      .stats{grid-template-columns:1fr}
+      .week-grid{grid-template-columns:130px repeat(7,52px)}
+      .add-habit{grid-template-columns:1fr}
+      .edit-row{grid-template-columns:1fr}
+      .habit-tools{grid-column:2}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Discipline Tracker</h1>
+      <div class="sub">Your goal is not a perfect streak. Your goal is to keep returning. Mark every habit honestly, record what you accomplished, and let the numbers show your consistency.</div>
+    </div>
+    <div class="datebox">
+      <div class="big" id="todayLabel"></div>
+      <div class="small">Data saves automatically on this device.</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>Today</h2>
+        <div class="pill" id="todayScore">0 / 0 complete</div>
+      </div>
+      <div class="sub" style="font-size:12px;margin:-4px 0 12px">Choose 0%, 25%, 50%, or 100% for each goal. The box fills as you progress; 100% is fully green. Only 100% extends that goal's 🔥 streak, and the main card turns blue when every active goal reaches 100%.</div>
+      <div class="habit-list" id="habitList"></div>
+      <div class="add-habit">
+        <input id="newHabitTitle" placeholder="New habit name" />
+        <input id="newHabitNote" placeholder="Short note (optional)" />
+        <button class="btn" id="addHabitBtn">Add habit</button>
+      </div>
+      <details class="archive-panel">
+        <summary>Archived goals <span id="archiveCount">(0)</span></summary>
+        <div class="archive-list" id="archiveList"></div>
+      </details>
+      <div class="progress"><div class="bar" id="progressBar"></div></div>
+      <div class="progress-row"><span id="percentLabel">0%</span><span>✓ completed · ✕ missed</span></div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head"><h2>Tonight's wins</h2><div class="pill">24h grace after day ends</div></div>
+        <textarea id="wins" placeholder="What did you accomplish today?&#10;&#10;Example: Worked out, prayed Fajr, posted even though I didn't feel like it..."></textarea>
+        <div class="row">
+          <button class="btn" id="saveWins">Save reflection</button>
+          <button class="btn secondary" id="clearToday">Clear today</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Consistency</h2><div class="pill">This month</div></div>
+        <div class="streak-card" id="mainStreakCard">
+          <div class="streak-fire">🔥</div>
+          <div>
+            <div class="streak-number"><span id="currentStreak">0</span> days</div>
+            <div class="streak-label">all-goals streak</div>
+            <div class="all-done-badge">All goals completed today</div>
+          </div>
+          <div class="streak-best">
+            <b>🔥 <span id="bestStreak">0</span></b>
+            <span>BEST</span>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><b id="weekPercent">0%</b><span>completion</span></div>
+          <div class="stat"><b id="weekDone">0</b><span>habits done</span></div>
+          <div class="stat"><b id="weekMissed">0</b><span>missed</span></div>
+        </div>
+        <div class="quote">One bad day does not erase your progress. The win is returning the next day.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-head">
+      <div>
+        <h2>Monthly history</h2>
+        <div class="sub" style="font-size:12px;margin-top:5px">When a day ends, any habit you left unfinished automatically becomes 0% (red ✕). Gray ✕ means the habit did not exist yet. Archived goals remain in history.</div>
+      </div>
+      <div class="history-nav">
+        <button class="month-btn" id="prevMonth" title="Previous month">‹</button>
+        <div class="pill" id="monthLabel"></div>
+        <button class="month-btn" id="nextMonth" title="Next month">›</button>
+      </div>
+    </div>
+    <div class="month-grid" id="monthGrid"></div>
+    <div class="legend">
+      <span><b style="color:var(--good)">✓</b> 100%</span>
+      <span><b style="color:#facc15">50%</b> partial</span>
+      <span><b style="color:#fbbf24">25%</b> partial</span>
+      <span><b style="color:var(--bad)">✕</b> 0% / missed</span>
+      <span><b style="color:#7f8792">✕</b> goal did not exist yet</span>
+      <span><b style="color:#4f5661">—</b> future</span>
+    </div>
+  </div>
+
+  <div class="footer">Everything is stored locally in your browser. No account required.</div>
+
+  <div class="day-modal-backdrop" id="dayModalBackdrop">
+    <div class="day-modal" role="dialog" aria-modal="true" aria-labelledby="dayModalTitle">
+      <div class="day-modal-head">
+        <div>
+          <div class="day-modal-title" id="dayModalTitle">Day details</div>
+          <div class="day-modal-sub" id="dayModalSub"></div>
+        </div>
+        <button class="day-modal-close" id="dayModalClose" type="button">×</button>
+      </div>
+      <div class="day-summary" id="daySummary"></div>
+      <div style="font-size:12px;font-weight:800;margin:4px 0 8px;color:var(--muted)">Reflection</div>
+      <div id="dayReflectionArea"></div>
+    </div>
+  </div>
+  <div class="toast" id="undoToast">
+    <div class="toast-text" id="undoToastText">Goal archived.</div>
+    <button class="undo-btn" id="undoArchiveBtn">UNDO</button>
+  </div>
+</div>
+
+<script>
+const DEFAULT_HABITS = [
+  ["Wake up for Fajr","Get up when the alarm goes off."],
+  ["Skincare","Complete your planned routine."],
+  ["Workout","Complete today's scheduled workout."],
+  ["Post content","Post once. Don't delete because of early views."],
+  ["Learn Islam / Prophet ﷺ","Spend intentional time learning."],
+  ["Make bed","Start the room clean."],
+  ["5–6k steps","Hit your daily movement target."],
+  ["30+ min outside","Get outside intentionally."],
+  ["Doomscroll ≤ 1 hour","Keep short-form entertainment under control."],
+  ["Read 5 pages Qur'an","Your normal target is five pages."],
+  ["Flexibility / splits","Do your planned stretching session."]
+];
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+const keyForDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = new Date();
+today.setHours(0,0,0,0);
+const todayKey = keyForDate(today);
+
+function newHabitId(){
+  return "h_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
+}
+function dateOnlyKey(value){
+  if(!value) return todayKey;
+  return String(value).slice(0,10);
+}
+function parseDateKey(key){
+  const [y,m,d] = key.split("-").map(Number);
+  return new Date(y,m-1,d);
+}
+function getStore(){
+  try { return JSON.parse(localStorage.getItem("disciplineTrackerV1") || "{}"); }
+  catch { return {}; }
+}
+function saveStore(s){ localStorage.setItem("disciplineTrackerV1", JSON.stringify(s)); }
+
+let store = getStore();
+if(!store.days) store.days = {};
+
+// ----- MIGRATION -----
+// Old versions used [title,note] arrays and numeric state indexes.
+// Convert once to stable habit objects + habit-ID keyed states.
+// Existing habits are treated as having existed from the earliest saved day,
+// so upgrading the app does NOT make them look newly created.
+if(!store.habits || !store.habits.length){
+  store.habits = DEFAULT_HABITS.map(([title,note],i)=>({
+    id:"default_"+i,
+    title,
+    note,
+    createdAt: todayKey
+  }));
+} else if(Array.isArray(store.habits[0])){
+  const savedKeys = Object.keys(store.days).sort();
+  const earliestSaved = savedKeys.length ? savedKeys[0] : todayKey;
+  const oldHabits = store.habits.map((h,i)=>({
+    id:"legacy_"+i+"_"+Math.random().toString(36).slice(2,7),
+    title:h[0],
+    note:h[1] || "",
+    createdAt:earliestSaved
+  }));
+
+  Object.values(store.days).forEach(day=>{
+    const oldStates = {...(day.states || {})};
+    const newStates = {};
+    oldHabits.forEach((habit,i)=>{
+      if(oldStates[i] !== undefined) newStates[habit.id] = oldStates[i];
+    });
+    day.states = newStates;
+  });
+
+  store.habits = oldHabits;
+}
+
+// Ensure all habits have stable metadata.
+store.habits = store.habits.map((h,i)=>({
+  id: h.id || ("habit_"+i+"_"+Math.random().toString(36).slice(2,7)),
+  title: h.title ?? h[0] ?? "Untitled habit",
+  note: h.note ?? h[1] ?? "",
+  createdAt: dateOnlyKey(h.createdAt || todayKey),
+  archivedAt: h.archivedAt ? dateOnlyKey(h.archivedAt) : null
+}));
+
+if(!store.days[todayKey]) store.days[todayKey] = {states:{}, wins:""};
+Object.values(store.days).forEach(day=>{ if(!day.states) day.states={}; });
+
+saveStore(store);
+
+// Automatically convert every unfinished past habit to 0%.
+finalizePastDays();
+
+let viewedMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+function setProgress(habitId, percent){
+  const day = store.days[todayKey] || (store.days[todayKey]={states:{},wins:""});
+  day.states[habitId] = percent;
+  saveStore(store);
+  render();
+}
+
+function reorderHabits(fromIndex, toIndex, placeAfter=false){
+  if(fromIndex < 0 || toIndex < 0) return;
+  const moved = store.habits[fromIndex];
+  store.habits.splice(fromIndex,1);
+
+  let insertIndex = toIndex;
+  if(fromIndex < toIndex) insertIndex -= 1;
+  if(placeAfter) insertIndex += 1;
+  insertIndex = Math.max(0, Math.min(insertIndex, store.habits.length));
+
+  store.habits.splice(insertIndex,0,moved);
+  saveStore(store);
+  render();
+}
+
+function addHabit(){
+  const title = $("newHabitTitle").value.trim();
+  const note = $("newHabitNote").value.trim();
+  if(!title) return;
+
+  store.habits.push({
+    id:newHabitId(),
+    title,
+    note,
+    createdAt:todayKey,
+    archivedAt:null
+  });
+
+  $("newHabitTitle").value="";
+  $("newHabitNote").value="";
+  saveStore(store);
+  render();
+}
+
+function editHabit(index,title,note){
+  // IMPORTANT: editing text does not replace the habit.
+  // The same id and createdAt are preserved.
+  store.habits[index].title = title.trim() || store.habits[index].title;
+  store.habits[index].note = note.trim();
+  saveStore(store);
+  render();
+}
+
+let lastArchivedHabitId = null;
+let undoTimer = null;
+
+function deleteHabit(index){
+  const habit = store.habits[index];
+  if(!habit) return;
+
+  const ok = confirm(
+    `Archive "${habit.title}"?
+
+It will disappear from Today's active goals, but ALL of its monthly history will stay saved. You can restore it later.`
+  );
+  if(!ok) return;
+
+  habit.archivedAt = todayKey;
+  lastArchivedHabitId = habit.id;
+  saveStore(store);
+  showUndoToast(`"${habit.title}" archived. History was preserved.`);
+  render();
+}
+
+function restoreHabit(habitId){
+  const habit = store.habits.find(h=>h.id===habitId);
+  if(!habit) return;
+  habit.archivedAt = null;
+  saveStore(store);
+  render();
+}
+
+function showUndoToast(message){
+  $("undoToastText").textContent = message;
+  $("undoToast").classList.add("show");
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(()=>{
+    $("undoToast").classList.remove("show");
+    lastArchivedHabitId = null;
+  }, 8000);
+}
+
+function undoLastArchive(){
+  if(!lastArchivedHabitId) return;
+  const id = lastArchivedHabitId;
+  lastArchivedHabitId = null;
+  clearTimeout(undoTimer);
+  $("undoToast").classList.remove("show");
+  restoreHabit(id);
+}
+
+function escapeAttr(v){
+  return String(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function escapeHTML(v){
+  return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function calculateHabitStreak(habit){
+  let cursor = new Date(today);
+  const todayState = store.days[todayKey]?.states?.[habit.id];
+  const todayDone = todayState === 100 || todayState === "done";
+
+  // Only 100% extends a streak. Partial progress does not break yesterday's
+  // streak until the day is over.
+  if(!todayDone){
+    cursor.setDate(cursor.getDate()-1);
+  }
+
+  let streak = 0;
+  const created = parseDateKey(habit.createdAt);
+  const archived = habit.archivedAt ? parseDateKey(habit.archivedAt) : null;
+
+  while(cursor >= created){
+    if(archived && cursor > archived){
+      cursor.setDate(cursor.getDate()-1);
+      continue;
+    }
+
+    const key = keyForDate(cursor);
+    const state = store.days[key]?.states?.[habit.id];
+    const done = state === 100 || state === "done";
+
+    if(!done) break;
+    streak++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+
+  return streak;
+}
+
+function renderHabits(){
+  const day = store.days[todayKey];
+  $("habitList").innerHTML="";
+
+  const activeHabits = store.habits
+    .map((h,index)=>({h,index}))
+    .filter(item=>!item.h.archivedAt);
+
+  activeHabits.forEach(({h,index})=>{
+    const i = index;
+    let state = day.states[h.id];
+    // Backward compatibility with older ✓ / ✕ data.
+    if(state === "done") state = 100;
+    if(state === "missed") state = 0;
+
+    const div = document.createElement("div");
+    div.className = `habit ${state !== undefined ? "progress-"+state : ""}`;
+    div.draggable=true;
+    div.dataset.index=i;
+
+    div.innerHTML=`
+      <button class="drag-handle" type="button" aria-label="Drag to reorder" title="Drag to reorder">☰</button>
+      <div class="habit-main">
+        <div class="habit-title">
+          ${escapeHTML(h.title)}
+          <span class="habit-streak" title="Consecutive days completed">🔥 ${calculateHabitStreak(h)}</span>
+        </div>
+        <div class="habit-note">${escapeHTML(h.note || "")}</div>
+      </div>
+      <div class="habit-tools">
+        <button class="icon-btn edit-habit" type="button" title="Edit habit">✎</button>
+        <button class="icon-btn delete-habit" type="button" title="Archive habit">🗑</button>
+        <div class="percent-actions">
+          <button class="percent-btn ${state===0?"active":""}" data-pct="0" type="button">0%</button>
+          <button class="percent-btn ${state===25?"active":""}" data-pct="25" type="button">25%</button>
+          <button class="percent-btn ${state===50?"active":""}" data-pct="50" type="button">50%</button>
+          <button class="percent-btn ${state===100?"active":""}" data-pct="100" type="button">100%</button>
+        </div>
+      </div>`;
+
+    div.querySelectorAll(".percent-btn").forEach(btn=>{
+      btn.onclick=()=>setProgress(h.id,Number(btn.dataset.pct));
+    });
+    div.querySelector(".delete-habit").onclick=()=>deleteHabit(i);
+
+    div.querySelector(".edit-habit").onclick=()=>{
+      div.draggable=false;
+      const main=div.querySelector(".habit-main");
+      main.innerHTML=`
+        <div class="edit-row">
+          <input class="edit-title" value="${escapeAttr(h.title)}" />
+          <input class="edit-note" value="${escapeAttr(h.note || "")}" />
+          <button class="btn save-edit" type="button">Save</button>
+          <button class="btn secondary cancel-edit" type="button">Cancel</button>
+        </div>`;
+      main.querySelector(".save-edit").onclick=()=>{
+        editHabit(i,main.querySelector(".edit-title").value,main.querySelector(".edit-note").value);
+      };
+      main.querySelector(".cancel-edit").onclick=()=>render();
+    };
+
+    div.addEventListener("dragstart",e=>{
+      if(e.target.closest(".percent-btn,.icon-btn,input,.btn")){
+        e.preventDefault(); return;
+      }
+      div.classList.add("dragging");
+      e.dataTransfer.effectAllowed="move";
+      e.dataTransfer.setData("text/plain",String(i));
+    });
+    div.addEventListener("dragend",()=>{
+      document.querySelectorAll(".habit").forEach(el=>el.classList.remove("dragging","drag-before","drag-after"));
+    });
+    div.addEventListener("dragover",e=>{
+      e.preventDefault();
+      const rect=div.getBoundingClientRect();
+      const after=e.clientY > rect.top + rect.height/2;
+      div.classList.toggle("drag-before",!after);
+      div.classList.toggle("drag-after",after);
+      e.dataTransfer.dropEffect="move";
+    });
+    div.addEventListener("dragleave",()=>div.classList.remove("drag-before","drag-after"));
+    div.addEventListener("drop",e=>{
+      e.preventDefault();
+      const fromIndex=Number(e.dataTransfer.getData("text/plain"));
+      const toIndex=Number(div.dataset.index);
+      const rect=div.getBoundingClientRect();
+      const placeAfter=e.clientY > rect.top + rect.height/2;
+      reorderHabits(fromIndex,toIndex,placeAfter);
+    });
+
+    $("habitList").appendChild(div);
+  });
+
+  const active = store.habits.filter(h=>!h.archivedAt);
+  const normalized = active.map(h=>{
+    const v=day.states[h.id];
+    if(v==="done") return 100;
+    if(v==="missed") return 0;
+    return typeof v==="number" ? v : 0;
+  });
+  const done = normalized.filter(v=>v===100).length;
+  const total=active.length;
+  const pct=total ? Math.round(normalized.reduce((a,b)=>a+b,0)/total) : 0;
+  $("todayScore").textContent=`${done} / ${total} at 100%`;
+  $("percentLabel").textContent=`${pct}%`;
+  $("progressBar").style.width=`${pct}%`;
+  $("wins").value=day.wins || "";
+  renderArchivedGoals();
+}
+
+function renderArchivedGoals(){
+  const archived = store.habits.filter(h=>h.archivedAt);
+  $("archiveCount").textContent = `(${archived.length})`;
+  $("archiveList").innerHTML = "";
+
+  if(!archived.length){
+    const empty = document.createElement("div");
+    empty.className = "archive-meta";
+    empty.textContent = "No archived goals.";
+    $("archiveList").appendChild(empty);
+    return;
+  }
+
+  archived.forEach(h=>{
+    const item = document.createElement("div");
+    item.className = "archive-item";
+    item.innerHTML = `
+      <div>
+        <div class="archive-name">${escapeHTML(h.title)}</div>
+        <div class="archive-meta">Archived ${h.archivedAt} · history preserved</div>
+      </div>
+      <button class="restore-btn" type="button">Restore</button>`;
+    item.querySelector(".restore-btn").onclick=()=>restoreHabit(h.id);
+    $("archiveList").appendChild(item);
+  });
+}
+
+function daysInMonth(year,month){
+  return new Date(year,month+1,0).getDate();
+}
+
+function monthDateKeys(year,month){
+  const count=daysInMonth(year,month);
+  return Array.from({length:count},(_,i)=>keyForDate(new Date(year,month,i+1)));
+}
+
+function finalizePastDays(){
+  // Autonomous daily rollover:
+  // once a calendar day is in the past, every active habit that was left
+  // unmarked is permanently recorded as 0%.
+  const createdDates = store.habits.map(h=>h.createdAt).filter(Boolean).sort();
+  if(!createdDates.length) return;
+
+  let cursor = parseDateKey(createdDates[0]);
+  let changed = false;
+
+  while(cursor < today){
+    const key = keyForDate(cursor);
+    if(!store.days[key]) store.days[key] = {states:{},wins:""};
+    if(!store.days[key].states) store.days[key].states = {};
+
+    store.habits.forEach(h=>{
+      const created = parseDateKey(h.createdAt);
+      const archived = h.archivedAt ? parseDateKey(h.archivedAt) : null;
+
+      const existedThatDay = cursor >= created && (!archived || cursor <= archived);
+      if(!existedThatDay) return;
+
+      if(store.days[key].states[h.id] === undefined){
+        store.days[key].states[h.id] = 0;
+        changed = true;
+      }
+    });
+
+    cursor.setDate(cursor.getDate()+1);
+  }
+
+  if(changed) saveStore(store);
+}
+
+function statusForHistory(habit,dateKey){
+  const date=parseDateKey(dateKey);
+  const created=parseDateKey(habit.createdAt);
+
+  if(date < created) return "precreated";
+  if(date > today) return "future";
+
+  if(habit.archivedAt){
+    const archived = parseDateKey(habit.archivedAt);
+    if(date > archived) return "archived";
+  }
+
+  const savedState=store.days[dateKey]?.states?.[habit.id];
+  if(savedState===100 || savedState==="done") return "done";
+  if(savedState===50) return "partial50";
+  if(savedState===25) return "partial25";
+  if(savedState===0 || savedState==="missed") return "missed";
+
+  // An unmarked past date after creation counts as not completed.
+  // Today stays neutral until the user chooses ✓ or ✕.
+  if(date < today) return "missed";
+  return "today-open";
+}
+
+function reflectionEditDeadline(dateKey){
+  // The day itself is editable normally.
+  // After that day ends, there is one additional 24-hour grace period.
+  const d = parseDateKey(dateKey);
+  const deadline = new Date(d);
+  deadline.setDate(deadline.getDate()+2); // midnight after the 24h grace period
+  return deadline;
+}
+
+function canEditReflection(dateKey){
+  const d = parseDateKey(dateKey);
+  const now = new Date();
+
+  // Never edit a future day.
+  if(d > now) return false;
+
+  return now < reflectionEditDeadline(dateKey);
+}
+
+function renderPopupReflection(dateKey){
+  const day = store.days[dateKey] || (store.days[dateKey]={states:{},wins:""});
+  const area = $("dayReflectionArea");
+  area.innerHTML = "";
+
+  if(canEditReflection(dateKey)){
+    const editor = document.createElement("textarea");
+    editor.className = "past-reflection-editor";
+    editor.placeholder = "Add a reflection for this day...";
+    editor.value = day.wins || "";
+
+    const actions = document.createElement("div");
+    actions.className = "reflection-actions";
+
+    const deadline = reflectionEditDeadline(dateKey);
+    const deadlineText = document.createElement("div");
+    deadlineText.className = "reflection-deadline";
+    deadlineText.textContent =
+      `Editable until ${deadline.toLocaleDateString(undefined,{month:"short",day:"numeric"})} at ${deadline.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`;
+
+    const save = document.createElement("button");
+    save.className = "btn";
+    save.type = "button";
+    save.textContent = day.wins?.trim() ? "Update reflection" : "Save reflection";
+
+    save.onclick = ()=>{
+      day.wins = editor.value.trim();
+      saveStore(store);
+      save.textContent = "Saved ✓";
+      setTimeout(()=>renderPopupReflection(dateKey),700);
+    };
+
+    actions.appendChild(deadlineText);
+    actions.appendChild(save);
+    area.appendChild(editor);
+    area.appendChild(actions);
+  } else {
+    const box = document.createElement("div");
+    box.className = "reflection-box";
+    box.textContent = day.wins?.trim()
+      ? day.wins
+      : "No reflection was saved for this day.";
+
+    const note = document.createElement("div");
+    note.className = "locked-note";
+    note.textContent = "🔒 This reflection is locked because the 24-hour grace period has ended.";
+
+    area.appendChild(box);
+    area.appendChild(note);
+  }
+}
+
+function openDayPopup(dateKey){
+  const date = parseDateKey(dateKey);
+  if(date > today) return;
+
+  const active = store.habits.filter(h=>{
+    const created = parseDateKey(h.createdAt);
+    const archived = h.archivedAt ? parseDateKey(h.archivedAt) : null;
+    return date >= created && (!archived || date <= archived);
+  });
+
+  $("dayModalTitle").textContent = date.toLocaleDateString(undefined,{
+    weekday:"long",month:"long",day:"numeric",year:"numeric"
+  });
+
+  const day = store.days[dateKey] || {states:{},wins:""};
+  const states = day.states || {};
+
+  $("daySummary").innerHTML = "";
+
+  if(!active.length){
+    const empty=document.createElement("div");
+    empty.className="day-summary-row";
+    empty.textContent="No active goals existed on this day.";
+    $("daySummary").appendChild(empty);
+  } else {
+    active.forEach(h=>{
+      let state=states[h.id];
+      if(state==="done") state=100;
+      if(state==="missed") state=0;
+      if(state===undefined && date < today) state=0;
+
+      const row=document.createElement("div");
+      row.className="day-summary-row";
+
+      let pct = 0;
+      if(state===100) pct=100;
+      else if(state===50) pct=50;
+      else if(state===25) pct=25;
+      else if(state===0) pct=0;
+
+      row.innerHTML=`
+        <div class="popup-habit-info">${escapeHTML(h.title)}</div>
+        <div class="popup-progress-wrap">
+          <div class="popup-progress">
+            <div class="popup-progress-fill p${pct}" style="width:${pct}%"></div>
+          </div>
+          <div class="popup-progress-label p${pct}">${pct}%</div>
+        </div>`;
+      $("daySummary").appendChild(row);
+    });
+  }
+
+  renderPopupReflection(dateKey);
+
+  const completed = active.filter(h=>{
+    const s=states[h.id];
+    return s===100 || s==="done";
+  }).length;
+
+  const reflectionStatus = canEditReflection(dateKey)
+    ? "reflection editable"
+    : "reflection locked";
+
+  $("dayModalSub").textContent = active.length
+    ? `${completed} of ${active.length} goals at 100% · ${reflectionStatus}`
+    : reflectionStatus;
+
+  $("dayModalBackdrop").classList.add("show");
+}
+
+function closeDayPopup(){
+  $("dayModalBackdrop").classList.remove("show");
+}
+
+function renderMonth(){
+  const year=viewedMonth.getFullYear();
+  const month=viewedMonth.getMonth();
+  const keys=monthDateKeys(year,month);
+  const grid=$("monthGrid");
+
+  grid.style.gridTemplateColumns=`160px repeat(${keys.length}, 34px)`;
+  grid.innerHTML="";
+
+  grid.appendChild(monthCell("Habit","name head"));
+
+  keys.forEach(key=>{
+    const d=parseDateKey(key);
+    const dow=d.toLocaleDateString(undefined,{weekday:"short"}).slice(0,1);
+    const c=monthCell("", "head");
+    c.innerHTML=`<span>${dow}</span><span>${d.getDate()}</span>`;
+    if(d <= today){
+      c.classList.add("clickable-day");
+      c.title="Click to view this day's details and reflection";
+      c.onclick=()=>openDayPopup(key);
+    }
+    grid.appendChild(c);
+  });
+
+  store.habits.forEach(h=>{
+    const name=monthCell(h.title, h.archivedAt ? "name archived-name" : "name");
+    name.title = h.archivedAt
+      ? `Created ${h.createdAt} · archived ${h.archivedAt}`
+      : `Created ${h.createdAt}`;
+    grid.appendChild(name);
+
+    keys.forEach(key=>{
+      const status=statusForHistory(h,key);
+      let symbol="—", cls="future", title="Future date";
+
+      if(status==="done"){
+        symbol="✓"; cls="done"; title="Completed";
+      } else if(status==="missed"){
+        symbol="✕"; cls="missed"; title="0% / not completed";
+      } else if(status==="partial25"){
+        symbol="25%"; cls="partial25"; title="25% completed";
+      } else if(status==="partial50"){
+        symbol="50%"; cls="partial50"; title="50% completed";
+      } else if(status==="precreated"){
+        symbol="✕"; cls="precreated"; title=`Goal had not been created yet (created ${h.createdAt})`;
+      } else if(status==="today-open"){
+        symbol="—"; cls="future"; title="Today — not marked yet";
+      } else if(status==="archived"){
+        symbol="—"; cls="future"; title=`Goal was archived on ${h.archivedAt}`;
+      }
+
+      const c=monthCell(symbol,cls);
+      c.title=title;
+      const cellDate=parseDateKey(key);
+      if(cellDate <= today){
+        c.classList.add("clickable-day");
+        c.onclick=()=>openDayPopup(key);
+      }
+      grid.appendChild(c);
+    });
+  });
+
+  $("monthLabel").textContent=viewedMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+
+  // Do not browse into months after the current month.
+  const currentMonthStart=new Date(today.getFullYear(),today.getMonth(),1);
+  $("nextMonth").disabled = viewedMonth >= currentMonthStart;
+
+  renderMonthStats(keys);
+}
+
+function renderMonthStats(keys){
+  let done=0, missed=0, eligible=0;
+
+  store.habits.forEach(h=>{
+    keys.forEach(key=>{
+      const d=parseDateKey(key);
+      if(d > today) return;
+      if(d < parseDateKey(h.createdAt)) return;
+      if(h.archivedAt && d > parseDateKey(h.archivedAt)) return;
+
+      const status=statusForHistory(h,key);
+      if(status==="done"){ done++; eligible++; }
+      else if(status==="missed" || status==="partial25" || status==="partial50"){ missed++; eligible++; }
+      // Today unmarked is not counted yet.
+    });
+  });
+
+  const pct=eligible ? Math.round(done/eligible*100) : 0;
+  $("weekPercent").textContent=`${pct}%`;
+  $("weekDone").textContent=done;
+  $("weekMissed").textContent=missed;
+}
+
+function monthCell(text,cls=""){
+  const d=document.createElement("div");
+  d.className=`month-cell ${cls}`;
+  d.textContent=text;
+  return d;
+}
+
+function activeHabitsOnDate(dateKey){
+  const date = parseDateKey(dateKey);
+  return store.habits.filter(h=>{
+    const created = parseDateKey(h.createdAt);
+    if(date < created) return false;
+    if(h.archivedAt && date > parseDateKey(h.archivedAt)) return false;
+    return true;
+  });
+}
+
+function isPerfectDay(dateKey){
+  const date = parseDateKey(dateKey);
+  if(date > today) return false;
+
+  const active = activeHabitsOnDate(dateKey);
+  if(!active.length) return false;
+
+  const states = store.days[dateKey]?.states || {};
+  return active.every(h=>states[h.id] === 100 || states[h.id] === "done");
+}
+
+function calculateStreaks(){
+  // Current streak: today counts if perfect. If today is still unfinished,
+  // count backward from yesterday so opening the app in the morning doesn't
+  // instantly destroy yesterday's streak.
+  let cursor = new Date(today);
+  if(!isPerfectDay(todayKey)){
+    cursor.setDate(cursor.getDate()-1);
+  }
+
+  let current = 0;
+  while(true){
+    const key = keyForDate(cursor);
+    if(!isPerfectDay(key)) break;
+    current++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+
+  // Best streak across all calendar days from the earliest goal creation.
+  const createdDates = store.habits.map(h=>h.createdAt).filter(Boolean).sort();
+  let best = 0, running = 0;
+
+  if(createdDates.length){
+    let d = parseDateKey(createdDates[0]);
+    while(d <= today){
+      if(isPerfectDay(keyForDate(d))){
+        running++;
+        best = Math.max(best,running);
+      } else {
+        running = 0;
+      }
+      d.setDate(d.getDate()+1);
+    }
+  }
+
+  return {current,best};
+}
+
+function renderStreak(){
+  const {current,best} = calculateStreaks();
+
+  const activeToday = activeHabitsOnDate(todayKey).filter(h=>!h.archivedAt);
+  const states = store.days[todayKey]?.states || {};
+  const allDoneToday = activeToday.length > 0 && activeToday.every(h=>states[h.id] === 100 || states[h.id] === "done");
+
+  $("currentStreak").textContent = current;
+  $("bestStreak").textContent = best;
+  $("mainStreakCard").classList.toggle("all-done", allDoneToday);
+}
+
+function render(){
+  $("todayLabel").textContent=today.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+  renderHabits();
+  renderMonth();
+  renderStreak();
+}
+
+$("saveWins").onclick=()=>{
+  store.days[todayKey].wins=$("wins").value.trim();
+  saveStore(store);
+  const old=$("saveWins").textContent;
+  $("saveWins").textContent="Saved ✓";
+  setTimeout(()=>$("saveWins").textContent=old,900);
+};
+
+$("undoArchiveBtn").onclick=undoLastArchive;
+$("addHabitBtn").onclick=addHabit;
+$("newHabitTitle").addEventListener("keydown",e=>{if(e.key==="Enter")addHabit();});
+$("newHabitNote").addEventListener("keydown",e=>{if(e.key==="Enter")addHabit();});
+
+$("clearToday").onclick=()=>{
+  if(confirm("Clear today's checkmarks and reflection?")){
+    store.days[todayKey]={states:{},wins:""};
+    saveStore(store);
+    render();
+  }
+};
+
+$("dayModalClose").onclick=closeDayPopup;
+$("dayModalBackdrop").onclick=e=>{
+  if(e.target === $("dayModalBackdrop")) closeDayPopup();
+};
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape") closeDayPopup();
+});
+
+$("prevMonth").onclick=()=>{
+  viewedMonth=new Date(viewedMonth.getFullYear(),viewedMonth.getMonth()-1,1);
+  renderMonth();
+};
+$("nextMonth").onclick=()=>{
+  viewedMonth=new Date(viewedMonth.getFullYear(),viewedMonth.getMonth()+1,1);
+  renderMonth();
+};
+
+render();
+</script>
+
+</body>
+
+
+</html>
+
