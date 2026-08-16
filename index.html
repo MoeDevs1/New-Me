@@ -410,6 +410,115 @@
       margin-top:8px;color:var(--muted);font-size:11px;
     }
 
+
+    .app-hidden{display:none!important}
+    .gate{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px 18px;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(139,92,246,.16), transparent 30%),
+        radial-gradient(circle at 88% 18%, rgba(45,212,191,.09), transparent 28%),
+        var(--bg);
+    }
+    .gate-shell{
+      width:min(1040px,100%);
+      display:grid;
+      grid-template-columns:.9fr 1.1fr;
+      gap:18px;
+    }
+    .gate-card,.demo-card{
+      background:linear-gradient(180deg,rgba(24,28,34,.98),rgba(19,22,27,.98));
+      border:1px solid var(--border);
+      border-radius:22px;
+      padding:22px;
+      box-shadow:var(--shadow);
+    }
+    .gate-kicker{
+      display:inline-flex;
+      padding:6px 9px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      color:var(--muted);
+      font-size:11px;
+      margin-bottom:14px;
+    }
+    .gate h1{font-size:clamp(34px,5vw,58px);margin:0 0 10px;line-height:.96}
+    .gate-copy{color:var(--muted);line-height:1.6;font-size:14px;margin-bottom:18px}
+    .gate-input-row{display:flex;gap:8px;align-items:stretch}
+    .gate-input-row input{min-width:0}
+    .gate-error{
+      min-height:18px;
+      color:var(--bad);
+      font-size:12px;
+      margin-top:8px;
+    }
+    .gate-note{
+      color:#6f7885;
+      font-size:11px;
+      line-height:1.5;
+      margin-top:12px;
+    }
+    .demo-title{
+      display:flex;justify-content:space-between;align-items:center;gap:12px;
+      margin-bottom:12px;
+    }
+    .demo-title b{font-size:15px}
+    .demo-day{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:8px;
+      align-items:center;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 11px;
+      background:#111419;
+      margin-bottom:8px;
+    }
+    .demo-name{font-size:12px;font-weight:800}
+    .demo-note{font-size:10px;color:var(--muted);margin-top:2px}
+    .demo-pct{
+      min-width:46px;text-align:center;padding:6px 8px;border-radius:9px;
+      font-size:11px;font-weight:900;
+    }
+    .demo-pct.done{color:var(--good);background:rgba(45,212,191,.12);border:1px solid rgba(45,212,191,.3)}
+    .demo-pct.half{color:#facc15;background:rgba(250,204,21,.10);border:1px solid rgba(250,204,21,.3)}
+    .demo-pct.low{color:#fbbf24;background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.27)}
+    .demo-pct.miss{color:var(--bad);background:rgba(251,113,133,.10);border:1px solid rgba(251,113,133,.28)}
+    .demo-calendar{
+      margin-top:14px;
+      display:grid;
+      grid-template-columns:repeat(7,1fr);
+      gap:6px;
+    }
+    .demo-square{
+      aspect-ratio:1;
+      border:1px solid var(--border);
+      border-radius:8px;
+      background:#111419;
+      display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:900;color:var(--muted);
+    }
+    .demo-square.good{background:rgba(45,212,191,.12);color:var(--good)}
+    .demo-square.half{background:rgba(250,204,21,.11);color:#facc15}
+    .demo-square.bad{background:rgba(251,113,133,.10);color:var(--bad)}
+    .demo-square.blank{color:#555d68}
+    .lock-row{
+      display:flex;justify-content:flex-end;margin-bottom:10px
+    }
+    .lock-btn{
+      border:1px solid var(--border);
+      background:#111419;color:var(--muted);
+      border-radius:10px;padding:8px 10px;
+      cursor:pointer;font-weight:800;font-size:11px;
+    }
+    .lock-btn:hover{color:var(--text);border-color:#454d59}
+    @media(max-width:800px){
+      .gate-shell{grid-template-columns:1fr}
+    }
+
     .footer{color:#6f7885;font-size:11px;text-align:center;margin-top:18px}
     @media(max-width:860px){
       .grid{grid-template-columns:1fr}
@@ -428,7 +537,60 @@
   </style>
 </head>
 <body>
-<div class="wrap">
+
+<div class="gate" id="syncGate">
+  <div class="gate-shell">
+    <div class="gate-card">
+      <div class="gate-kicker">Private tracker</div>
+      <h1>New Me</h1>
+      <div class="gate-copy">
+        Your real habits and history stay hidden on this screen. Enter your sync code to open your tracker.
+      </div>
+      <div class="gate-input-row">
+        <input id="gateSyncCode" type="password" autocomplete="off" placeholder="Enter sync code" />
+        <button class="btn" id="unlockTrackerBtn" type="button">Open tracker</button>
+      </div>
+      <div class="gate-error" id="gateError"></div>
+      <div class="gate-note">
+        This preview uses fake example data only. Your actual tracker loads only after a code is entered on this device.
+      </div>
+    </div>
+
+    <div class="demo-card">
+      <div class="demo-title">
+        <b>Example day</b>
+        <span class="pill">Demo only</span>
+      </div>
+
+      <div class="demo-day">
+        <div><div class="demo-name">Morning walk</div><div class="demo-note">Sample goal</div></div>
+        <div class="demo-pct done">100%</div>
+      </div>
+      <div class="demo-day">
+        <div><div class="demo-name">Practice guitar</div><div class="demo-note">Sample goal</div></div>
+        <div class="demo-pct half">50%</div>
+      </div>
+      <div class="demo-day">
+        <div><div class="demo-name">Study Spanish</div><div class="demo-note">Sample goal</div></div>
+        <div class="demo-pct low">25%</div>
+      </div>
+      <div class="demo-day">
+        <div><div class="demo-name">Tidy workspace</div><div class="demo-note">Sample goal</div></div>
+        <div class="demo-pct miss">0%</div>
+      </div>
+
+      <div class="demo-calendar" aria-label="Example history">
+        <div class="demo-square good">✓</div><div class="demo-square good">✓</div><div class="demo-square half">50</div>
+        <div class="demo-square bad">✕</div><div class="demo-square good">✓</div><div class="demo-square blank">—</div><div class="demo-square good">✓</div>
+        <div class="demo-square bad">✕</div><div class="demo-square half">50</div><div class="demo-square good">✓</div>
+        <div class="demo-square good">✓</div><div class="demo-square bad">✕</div><div class="demo-square good">✓</div><div class="demo-square good">✓</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap app-hidden" id="trackerApp">
+  <div class="lock-row"><button class="lock-btn" id="lockTrackerBtn" type="button">Lock tracker</button></div>
   <div class="top">
     <div>
       <h1>Discipline Tracker</h1>
@@ -464,7 +626,7 @@
     <div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head"><h2>Tonight's wins</h2><div class="pill">24h grace after day ends</div></div>
-        <textarea id="wins" placeholder="What did you accomplish today?&#10;&#10;Example: Worked out, prayed Fajr, posted even though I didn't feel like it..."></textarea>
+        <textarea id="wins" placeholder="Today I..."></textarea>
         <div class="row">
           <button class="btn" id="saveWins">Save reflection</button>
           <button class="btn secondary" id="clearToday">Clear today</button>
@@ -518,7 +680,7 @@
     </div>
   </div>
 
-  <div class="footer">Everything is stored locally in your browser. No account required.</div>
+  <div class="footer">Your tracker syncs through your private sync code.</div>
 
   <div class="day-modal-backdrop" id="dayModalBackdrop">
     <div class="day-modal" role="dialog" aria-modal="true" aria-labelledby="dayModalTitle">
@@ -560,17 +722,7 @@ const db = firebase.firestore();
 const SYNC_CODE_KEY = "disciplineSyncCode";
 const DEVICE_ID_KEY = "disciplineDeviceId";
 
-let syncCode = localStorage.getItem(SYNC_CODE_KEY);
-
-if (!syncCode) {
-  syncCode = prompt(
-    "Enter your tracker sync code. Use the SAME code on your PC and phone."
-  )?.trim();
-
-  if (syncCode) {
-    localStorage.setItem(SYNC_CODE_KEY, syncCode);
-  }
-}
+let syncCode = localStorage.getItem(SYNC_CODE_KEY) || "";
 
 let deviceId = localStorage.getItem(DEVICE_ID_KEY);
 
@@ -588,6 +740,74 @@ let trackerDocRef = null;
 let cloudSaveTimer = null;
 let lastLocalWriteTs = 0;
 let syncListenerStarted = false;
+
+let firestoreUnsubscribe = null;
+
+const REFLECTION_STARTER = "Today I ";
+
+function normalizeReflectionForSave(value){
+  const text = String(value ?? "");
+  return text.trim() === REFLECTION_STARTER.trim() ? "" : text;
+}
+
+function reflectionValueForEditor(value){
+  return value && String(value).trim()
+    ? value
+    : REFLECTION_STARTER;
+}
+
+function showTracker(){
+  $("syncGate").classList.add("app-hidden");
+  $("trackerApp").classList.remove("app-hidden");
+}
+
+function showGate(){
+  $("trackerApp").classList.add("app-hidden");
+  $("syncGate").classList.remove("app-hidden");
+}
+
+function lockTracker(){
+  if(firestoreUnsubscribe){
+    firestoreUnsubscribe();
+    firestoreUnsubscribe = null;
+  }
+  syncListenerStarted = false;
+  trackerDocRef = null;
+  syncCode = "";
+  localStorage.removeItem(SYNC_CODE_KEY);
+  $("gateSyncCode").value = "";
+  $("gateError").textContent = "";
+  showGate();
+}
+
+async function unlockTrackerWithCode(code){
+  const clean = String(code || "").trim();
+
+  if(!clean){
+    $("gateError").textContent = "Enter your sync code.";
+    return;
+  }
+
+  if(clean.includes("/")){
+    $("gateError").textContent = "The sync code cannot contain /";
+    return;
+  }
+
+  syncCode = clean;
+  localStorage.setItem(SYNC_CODE_KEY, syncCode);
+  $("gateError").textContent = "";
+
+  if(firestoreUnsubscribe){
+    firestoreUnsubscribe();
+    firestoreUnsubscribe = null;
+  }
+  syncListenerStarted = false;
+  trackerDocRef = null;
+
+  showTracker();
+  await setupFirestoreSync();
+}
+
 let reflectionAutosaveTimer = null;
 let reflectionDraftDirty = false;
 
@@ -621,7 +841,7 @@ function setupFirestoreSync() {
   syncListenerStarted = true;
   trackerDocRef = db.collection("trackers").doc(syncCode);
 
-  trackerDocRef.onSnapshot(
+  firestoreUnsubscribe = trackerDocRef.onSnapshot(
     snapshot => {
       if (!snapshot.exists) {
         queueCloudSave(store);
@@ -676,16 +896,16 @@ function setupFirestoreSync() {
 }
 
 const DEFAULT_HABITS = [
-  ["Wake up for Fajr","Get up when the alarm goes off."],
+  ["Morning walk","Get up when the alarm goes off."],
   ["Skincare","Complete your planned routine."],
-  ["Workout","Complete today's scheduled workout."],
+  ["Practice guitar","Complete today's scheduled workout."],
   ["Post content","Post once. Don't delete because of early views."],
   ["Learn Islam / Prophet ﷺ","Spend intentional time learning."],
   ["Make bed","Start the room clean."],
   ["5–6k steps","Hit your daily movement target."],
   ["30+ min outside","Get outside intentionally."],
   ["Doomscroll ≤ 1 hour","Keep short-form entertainment under control."],
-  ["Read 5 pages Qur'an","Your normal target is five pages."],
+  ["Study Spanish Qur'an","Your normal target is five pages."],
   ["Flexibility / splits","Do your planned stretching session."]
 ];
 
@@ -721,7 +941,7 @@ function saveCurrentReflectionNow() {
   const winsEl = $("wins");
   if (!winsEl || !store?.days?.[todayKey]) return;
 
-  store.days[todayKey].wins = winsEl.value;
+  store.days[todayKey].wins = normalizeReflectionForSave(winsEl.value);
   reflectionDraftDirty = false;
   saveStore(store);
 }
@@ -740,7 +960,7 @@ function preserveReflectionDraft() {
   if (!winsEl || !store?.days?.[todayKey]) return;
 
   if (reflectionDraftDirty) {
-    store.days[todayKey].wins = winsEl.value;
+    store.days[todayKey].wins = normalizeReflectionForSave(winsEl.value);
   }
 }
 
@@ -1047,7 +1267,7 @@ function renderHabits(){
   $("percentLabel").textContent=`${pct}%`;
   $("progressBar").style.width=`${pct}%`;
   if (!reflectionDraftDirty) {
-    $("wins").value = day.wins || "";
+    $("wins").value = reflectionValueForEditor(day.wins);
   }
   renderArchivedGoals();
 }
@@ -1174,7 +1394,7 @@ function renderPopupReflection(dateKey){
     const editor = document.createElement("textarea");
     editor.className = "past-reflection-editor";
     editor.placeholder = "Add a reflection for this day...";
-    editor.value = day.wins || "";
+    editor.value = reflectionValueForEditor(day.wins);
 
     const actions = document.createElement("div");
     actions.className = "reflection-actions";
@@ -1191,7 +1411,7 @@ function renderPopupReflection(dateKey){
     save.textContent = day.wins?.trim() ? "Update reflection" : "Save reflection";
 
     save.onclick = ()=>{
-      day.wins = editor.value.trim();
+      day.wins = normalizeReflectionForSave(editor.value);
       saveStore(store);
       save.textContent = "Saved ✓";
       setTimeout(()=>renderPopupReflection(dateKey),700);
@@ -1515,8 +1735,20 @@ $("nextMonth").onclick=()=>{
   renderMonth();
 };
 
+$("unlockTrackerBtn").onclick=()=>unlockTrackerWithCode($("gateSyncCode").value);
+$("gateSyncCode").addEventListener("keydown",e=>{
+  if(e.key==="Enter") unlockTrackerWithCode($("gateSyncCode").value);
+});
+$("lockTrackerBtn").onclick=lockTracker;
+
 render();
-setupFirestoreSync();
+
+if(syncCode){
+  showTracker();
+  setupFirestoreSync();
+} else {
+  showGate();
+}
 </script>
 </body>
 </html>
