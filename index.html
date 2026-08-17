@@ -617,7 +617,7 @@
         Enter your code to continue. Incorrect codes open a harmless example tracker.
       </div>
       <div class="gate-input-row">
-        <input id="gateSyncCode" type="password" autocomplete="off" placeholder="Enter sync code" />
+        <input id="gateSyncCode" type="password" autocomplete="off" maxlength="5" placeholder="Enter 5-character code" />
         <button class="btn" id="unlockTrackerBtn" type="button">Open tracker</button>
       </div>
       <div class="gate-error" id="gateError"></div>
@@ -908,6 +908,11 @@ async function unlockTrackerWithCode(code){
 
   if(!clean){
     $("gateError").textContent = "Enter a code.";
+    return;
+  }
+
+  if(clean !== REAL_ACCESS_CODE && clean.length !== 5){
+    $("gateError").textContent = "Code must be exactly 5 characters.";
     return;
   }
 
