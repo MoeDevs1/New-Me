@@ -853,6 +853,7 @@ let trackerDocRef = null;
 let cloudSaveTimer = null;
 let lastLocalWriteTs = 0;
 let syncListenerStarted = false;
+let initialCloudLoadComplete = false;
 
 let firestoreUnsubscribe = null;
 
@@ -893,6 +894,7 @@ function lockTracker(){
   }
 
   syncListenerStarted = false;
+  initialCloudLoadComplete = false;
   trackerDocRef = null;
   syncCode = "";
   isDemoMode = false;
@@ -924,6 +926,7 @@ async function unlockTrackerWithCode(code){
   }
 
   syncListenerStarted = false;
+  initialCloudLoadComplete = false;
   trackerDocRef = null;
 
   // Only the exact private code opens the real synced tracker.
@@ -932,13 +935,20 @@ async function unlockTrackerWithCode(code){
     syncCode = clean;
     localStorage.setItem(SYNC_CODE_KEY, syncCode);
 
-    store = getStore();
-    if(!store.days) store.days = {};
-    if(!store.days[todayKey]) store.days[todayKey] = {states:{},wins:""};
+    // IMPORTANT: Do not trust this device's localStorage yet.
+    // Load the existing Firestore tracker from the SERVER first so a fresh
+    // phone cannot overwrite the real account with an empty local tracker.
+    const loaded = await loadInitialCloudStore();
+    if(!loaded){
+      syncCode = "";
+      localStorage.removeItem(SYNC_CODE_KEY);
+      showGate();
+      return;
+    }
 
     showTracker();
     render();
-    await setupFirestoreSync();
+    setupFirestoreSync();
     return;
   }
 
@@ -955,7 +965,8 @@ let reflectionAutosaveTimer = null;
 let reflectionDraftDirty = false;
 
 function queueCloudSave(data) {
-  if (!syncCode || !trackerDocRef) return;
+  // Never upload anything until the first authoritative cloud read finishes.
+  if (!syncCode || !trackerDocRef || !initialCloudLoadComplete) return;
 
   clearTimeout(cloudSaveTimer);
 
@@ -978,18 +989,76 @@ function queueCloudSave(data) {
   }, 400);
 }
 
+async function loadInitialCloudStore(){
+  if(!syncCode) return false;
+
+  trackerDocRef = db.collection("trackers").doc(syncCode);
+
+  try {
+    // Force an authoritative server read. This avoids the mobile cache race
+    // where an initial snapshot can temporarily report that the doc is absent.
+    const snapshot = await trackerDocRef.get({ source: "server" });
+
+    if(snapshot.exists){
+      const remote = snapshot.data() || {};
+
+      if(remote.data){
+        const incomingStore = JSON.parse(remote.data);
+        if(!incomingStore || typeof incomingStore !== "object"){
+          throw new Error("Cloud tracker data is invalid.");
+        }
+
+        store = incomingStore;
+        if(!store.days) store.days = {};
+        if(!Array.isArray(store.habits)) store.habits = [];
+        if(!store.days[todayKey]){
+          store.days[todayKey] = { states:{}, wins:"" };
+        }
+
+        localStorage.setItem("disciplineTrackerV1", JSON.stringify(store));
+      }
+    } else {
+      // The server has definitively confirmed that this account does not exist.
+      // Only now is it safe to initialize it from this device's local tracker.
+      store = getStore();
+      if(!store || typeof store !== "object") store = {};
+      if(!Array.isArray(store.habits)) store.habits = [];
+      if(!store.days) store.days = {};
+      if(!store.days[todayKey]){
+        store.days[todayKey] = { states:{}, wins:"" };
+      }
+
+      const timestamp = Date.now();
+      lastLocalWriteTs = timestamp;
+      await trackerDocRef.set({
+        data: JSON.stringify(store),
+        updatedAt: timestamp,
+        updatedBy: deviceId
+      }, { merge: true });
+    }
+
+    initialCloudLoadComplete = true;
+    return true;
+  } catch(error){
+    console.error("Initial Firebase load failed:", error);
+    initialCloudLoadComplete = false;
+    $("gateError").textContent = "Could not load your saved tracker. Check your internet and try again.";
+    return false;
+  }
+}
+
 function setupFirestoreSync() {
-  if (!syncCode || syncListenerStarted) return;
+  if (!syncCode || syncListenerStarted || !initialCloudLoadComplete) return;
 
   syncListenerStarted = true;
   trackerDocRef = db.collection("trackers").doc(syncCode);
 
   firestoreUnsubscribe = trackerDocRef.onSnapshot(
     snapshot => {
-      if (!snapshot.exists) {
-        queueCloudSave(store);
-        return;
-      }
+      // Never create/overwrite data merely because a realtime snapshot says
+      // the document is missing. Creation is handled only by the authoritative
+      // server read in loadInitialCloudStore().
+      if (!snapshot.exists) return;
 
       const remote = snapshot.data() || {};
 
@@ -1004,29 +1073,18 @@ function setupFirestoreSync() {
 
       try {
         const incomingStore = JSON.parse(remote.data);
-
         if (!incomingStore || typeof incomingStore !== "object") return;
 
         preserveReflectionDraft();
-
         store = incomingStore;
 
-        if (!store.days) {
-          store.days = {};
-        }
-
+        if (!store.days) store.days = {};
+        if (!Array.isArray(store.habits)) store.habits = [];
         if (!store.days[todayKey]) {
-          store.days[todayKey] = {
-            states: {},
-            wins: ""
-          };
+          store.days[todayKey] = { states: {}, wins: "" };
         }
 
-        localStorage.setItem(
-          "disciplineTrackerV1",
-          JSON.stringify(store)
-        );
-
+        localStorage.setItem("disciplineTrackerV1", JSON.stringify(store));
         render();
       } catch (error) {
         console.error("Firebase sync failed:", error);
@@ -1988,9 +2046,11 @@ $("lockTrackerBtn").onclick=lockTracker;
 render();
 
 if(syncCode === REAL_ACCESS_CODE){
-  isDemoMode = false;
-  showTracker();
-  setupFirestoreSync();
+  // A remembered code must follow the exact same cloud-first login path.
+  // Do not auto-open from localStorage before Firestore is loaded.
+  const rememberedCode = syncCode;
+  syncCode = "";
+  unlockTrackerWithCode(rememberedCode);
 } else {
   syncCode = "";
   localStorage.removeItem(SYNC_CODE_KEY);
