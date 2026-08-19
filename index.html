@@ -614,15 +614,15 @@
       <div class="gate-kicker">Private tracker</div>
       <h1>New Me</h1>
       <div class="gate-copy">
-        Enter your code to continue. Incorrect codes open a harmless example tracker.
+        Enter your code to continue. Use aaaa, or any code with 5+ characters. Each code has its own private tracker.
       </div>
       <div class="gate-input-row">
-        <input id="gateSyncCode" type="password" autocomplete="off" maxlength="5" placeholder="Enter 5-character code" />
+        <input id="gateSyncCode" type="password" autocomplete="off" minlength="5" placeholder="Enter code" />
         <button class="btn" id="unlockTrackerBtn" type="button">Open tracker</button>
       </div>
       <div class="gate-error" id="gateError"></div>
       <div class="gate-note">
-        This preview uses unrelated fake example data only. None of your real goals are shown here. Your actual tracker loads only after a code is entered on this device.
+        Code aaaa opens your existing tracker. Any other code with 5+ characters opens its own separate synced tracker.
       </div>
     </div>
 
@@ -913,8 +913,8 @@ async function unlockTrackerWithCode(code){
     return;
   }
 
-  if(clean !== REAL_ACCESS_CODE && clean.length !== 5){
-    $("gateError").textContent = "Code must be exactly 5 characters.";
+  if(clean !== REAL_ACCESS_CODE && clean.length < 5){
+    $("gateError").textContent = "Code must be at least 5 characters.";
     return;
   }
 
@@ -929,36 +929,27 @@ async function unlockTrackerWithCode(code){
   initialCloudLoadComplete = false;
   trackerDocRef = null;
 
-  // Only the exact private code opens the real synced tracker.
-  if(clean === REAL_ACCESS_CODE){
-    isDemoMode = false;
-    syncCode = clean;
-    localStorage.setItem(SYNC_CODE_KEY, syncCode);
+  // Every valid code is a real, independent synced tracker.
+  // `aaaa` remains valid as the one special 4-character legacy code.
+  // Every other real code must contain at least 5 characters.
+  isDemoMode = false;
+  syncCode = clean;
+  localStorage.setItem(SYNC_CODE_KEY, syncCode);
 
-    // IMPORTANT: Do not trust this device's localStorage yet.
-    // Load the existing Firestore tracker from the SERVER first so a fresh
-    // phone cannot overwrite the real account with an empty local tracker.
-    const loaded = await loadInitialCloudStore();
-    if(!loaded){
-      syncCode = "";
-      localStorage.removeItem(SYNC_CODE_KEY);
-      showGate();
-      return;
-    }
-
-    showTracker();
-    render();
-    setupFirestoreSync();
+  // IMPORTANT: always resolve this code from Firestore first.
+  // Existing codes load their own cloud data; brand-new codes get a fresh
+  // empty tracker and never inherit data from another code on this device.
+  const loaded = await loadInitialCloudStore();
+  if(!loaded){
+    syncCode = "";
+    localStorage.removeItem(SYNC_CODE_KEY);
+    showGate();
     return;
   }
 
-  // Any other code opens a harmless fake tracker with 4 unrelated demo tasks.
-  isDemoMode = true;
-  syncCode = "";
-  store = makeDemoStore();
-
   showTracker();
   render();
+  setupFirestoreSync();
 }
 
 let reflectionAutosaveTimer = null;
@@ -1015,18 +1006,20 @@ async function loadInitialCloudStore(){
           store.days[todayKey] = { states:{}, wins:"" };
         }
 
-        localStorage.setItem("disciplineTrackerV1", JSON.stringify(store));
+        localStorage.setItem(trackerStorageKey(syncCode), JSON.stringify(store));
       }
     } else {
-      // The server has definitively confirmed that this account does not exist.
-      // Only now is it safe to initialize it from this device's local tracker.
-      store = getStore();
-      if(!store || typeof store !== "object") store = {};
-      if(!Array.isArray(store.habits)) store.habits = [];
-      if(!store.days) store.days = {};
-      if(!store.days[todayKey]){
-        store.days[todayKey] = { states:{}, wins:"" };
-      }
+      // The server has definitively confirmed that this code does not exist.
+      // Start a brand-new EMPTY tracker for this code. Never copy another
+      // account's local data into a newly-created code.
+      store = {
+        habits: [],
+        days: {
+          [todayKey]: { states:{}, wins:"" }
+        }
+      };
+
+      localStorage.setItem(trackerStorageKey(syncCode), JSON.stringify(store));
 
       const timestamp = Date.now();
       lastLocalWriteTs = timestamp;
@@ -1084,7 +1077,7 @@ function setupFirestoreSync() {
           store.days[todayKey] = { states: {}, wins: "" };
         }
 
-        localStorage.setItem("disciplineTrackerV1", JSON.stringify(store));
+        localStorage.setItem(trackerStorageKey(syncCode), JSON.stringify(store));
         render();
       } catch (error) {
         console.error("Firebase sync failed:", error);
@@ -1128,16 +1121,40 @@ function parseDateKey(key){
   const [y,m,d] = key.split("-").map(Number);
   return new Date(y,m-1,d);
 }
-function getStore(){
-  try { return JSON.parse(localStorage.getItem("disciplineTrackerV1") || "{}"); }
-  catch { return {}; }
+function trackerStorageKey(code = syncCode){
+  return code ? `disciplineTrackerV1:${code}` : "disciplineTrackerV1";
+}
+
+function getStore(code = syncCode){
+  try {
+    if(code){
+      const scoped = localStorage.getItem(trackerStorageKey(code));
+      if(scoped) return JSON.parse(scoped);
+
+      // One-time backwards compatibility for the original aaaa tracker.
+      // Older versions stored it under the unscoped disciplineTrackerV1 key.
+      if(code === REAL_ACCESS_CODE){
+        const legacy = localStorage.getItem("disciplineTrackerV1");
+        if(legacy){
+          const parsed = JSON.parse(legacy);
+          localStorage.setItem(trackerStorageKey(code), legacy);
+          return parsed;
+        }
+      }
+      return {};
+    }
+
+    return JSON.parse(localStorage.getItem("disciplineTrackerV1") || "{}");
+  } catch {
+    return {};
+  }
 }
 function saveStore(s){
-  if(isDemoMode){
+  if(isDemoMode || !syncCode){
     return;
   }
 
-  localStorage.setItem("disciplineTrackerV1", JSON.stringify(s));
+  localStorage.setItem(trackerStorageKey(syncCode), JSON.stringify(s));
   queueCloudSave(s);
 }
 
@@ -2045,9 +2062,8 @@ $("lockTrackerBtn").onclick=lockTracker;
 
 render();
 
-if(syncCode === REAL_ACCESS_CODE){
-  // A remembered code must follow the exact same cloud-first login path.
-  // Do not auto-open from localStorage before Firestore is loaded.
+if(syncCode === REAL_ACCESS_CODE || syncCode.length >= 5){
+  // Any remembered valid code follows the same cloud-first login path.
   const rememberedCode = syncCode;
   syncCode = "";
   unlockTrackerWithCode(rememberedCode);
